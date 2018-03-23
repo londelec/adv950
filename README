@@ -122,7 +122,10 @@ Version 3.32 <2010-08-11>
 Version 3.33 <2010-11-07>
       - support 2.6.37,2.6.38,2.6.39 and 3.x kernel
       - support PCIe-1620
-    
+Version 4.4.0-116 <2018-03-23>
+      - adapted for 4.4.0-116 kernel source from Ubuntu 16.04 LTS
+        built and tested with kernel 4.4.0-116-londelec
+
 
 2. Test environment
 

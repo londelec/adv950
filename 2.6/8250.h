@@ -54,6 +54,33 @@
 #define CDTRDSR	  004000000000  /* DTR/DSR flow control */
 #endif
 
+
+
+/*
+ * The special register set for XR17v25x UARTs.
+ */
+
+#define XR_17V25X_EXTENDED_FCTR		8
+#define XR_17V25X_EXTENDED_EFR		9
+#define XR_17V25X_TXFIFO_CNT		10
+#define XR_17V25X_RXFIFO_CNT		11
+#define XR_17V25X_EXTENDED_RXTRG	11
+
+#define XR_17V25X_FCTR_RTS_8DELAY	0x03
+#define XR_17V25X_FCTR_TRGD		192
+
+/* 17V15X TX/RX memory mapped buffer offsets */
+
+#define UART_17V25X_RX_OFFSET		0x100
+#define UART_17V25X_TX_OFFSET 		0x100
+
+/*
+ * These are the EXTENDED definitions for the 17V25X's Interrupt
+ * Enable Register
+ */
+#define	XR_17V25X_IER_RTSDTR	0x40
+#define XR_17V25X_IER_CTSDSR	0x80
+
 //jinxin added end
 void adv_serial8250_get_irq_map(unsigned int *map);
 void adv_serial8250_suspend_port(int line);

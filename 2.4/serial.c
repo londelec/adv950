@@ -1,6 +1,6 @@
 //******************************************************************************
 //
-// Copyright (c) 2011 Advantech Industrial Automation Group.
+// Copyright (c) 2014 Advantech Industrial Automation Group.
 //
 // Oxford PCI-954/952/16C950 with Advantech RS232/422/485 capacities
 // 
@@ -24,7 +24,7 @@
 
 //***********************************************************************
 // File:      serial.c
-// Version:   3.32 [2010-10-20]
+// Version:   3.40 [2014-06-12]
 // Kernel:    2.4.x
 // Author:    Po-Cheng Chen
 // Devices:
@@ -32,71 +32,19 @@
 //            UNO-2176[COM1~COM4] UNO-1150[COM2/COM3] UNO-2679 [COM3~COM6]
 //            UNO-4672 [COM3~COM10]
 //      ICOM: PCI-1601 PCI-1602 PCI-1603 PCI-1604
-//            PCI-1610 PCI-1612 PCI-1620 PCI-1622
+//            PCI-1610 PCI-1611 PCI-1612 PCI-1620 PCI-1622
 //      MIC:  MIC-3611 MIC-3612 MIC-3620 MIC-3621
 //      PCM:  PCM-3614P/I PCM-3641P/I PCM-3618P/I PCM-3681P/I
-// Change Log:
-//      <2005-2-17> 
-//          - Move serial.c from 2.4.24 and adv950 from 3.04
-//      <2005-4-25>
-//          - Remove the folder of 'pclterm' from the package
-//          - Test in SuSE 9.2, Mandrake 10.1 and Debian 3.0r2
-//      <2005-5-31>
-//          - Add ICOM cards support
-//            PCI-1601A/B/AU/BU, PCI-1602A/B/AU/BU/UP,
-//            PCI-1603, PCI-1604UP and PCI-1622CU
-//      <2005-6-14>
-//          - Correct PCI-952 2nd port start base address(BAR1)
-//      <2005-6-22>
-//          - Fix 2.4 driver which miss to set auto DTR correctly
-//      <2005-6-24>
-//          - Add code to setup auto DTR after detection
-//      <2005-6-29>
-//          - Fix PCI-1622 ports on function 1 detection problem
-//      <2005-7-20>
-//          - Add support for UNOB-2201CB carrier board
-//      <2005-08-09>
-//          - Fix UNOB-2201CB carrier board
-//      <2005-11-07>
-//          - Add support for MIC-3611
-//      <2006-2-16>
-//          - Add support for Mandriva Linux 2006
-//      <2006-2-16>
-//          - Change the SERIAL_NAME to support devfs.
-//      <2006-10-11>
-//          - Add support for UNO-2176
-//      <2007-03-06>
-//          - Support quick response(use setserial to change uart type)
-//          - Enable 16C950 trigger level and hardware and software flow control
-//      <2007-05-29>
-//          - Add support for PCM-3614P PCM-3641P PCM-3618P PCM-3681P
-//      <2007-12-06>
-//          - Fix software flow control for MIC-3612 
-//      <2008-06-20>
-//          - to support FC7 and FC8
-//          - to support UNO-1150
-//          - to support MIC-3621
-//      <2008-10-08>
-//          - Source headers comply with GPL
-//          - update driver readme
-//      <2008-12-08>
-//          - to support UNO-2679, UNO-4672
-//      <2009-06-03> V3.29
-//	    - to support device A001,A002,A004,A101,A102,A104
-//	    - to support device F001,F002,F004,F101,F102,F104
-//      <2010-05-06> V3.30
-//	    - to support Advantech General COM port
-//      <2010-05-06> V3.32
-//	    - Fix bug in redhat 7.2
-//      <2011-11-07> V3.33
-//	    - Support PCIe-1620
-//         
-//      
+//      General COM Port Devices:
+//            A001, A002, A004 A101, A102, A104
+//            F001, F002, F004 F101, F102, F104
+//            A202, A304, A408
+//              
 //***********************************************************************
 //***********************************************************************
 
-static char *serial_version = "3.33";
-static char *serial_revdate = "11/07/2011";
+static char *serial_version = "3.40";
+static char *serial_revdate = "06/12/2014";
 
 #define PCI_VENDOR_ID_ADVANTECH                0x13fe
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600        0x1600 /* Internal */
@@ -108,6 +56,7 @@ static char *serial_revdate = "11/07/2011";
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1601   0x1601
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1602   0x1602
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1610   0x1610
+#define PCI_DEVICE_ID_ADVANTECH_PCI1600_1611   0x1611
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1612   0x1612 /* Also for UNO-2059 */
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1620   0x1620
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1622   0x1622
@@ -163,6 +112,21 @@ static char *serial_revdate = "11/07/2011";
 #define PCI_DEVICE_ID_ADVANTECH_PCIE952	     0xA202
 #define PCI_DEVICE_ID_ADVANTECH_PCIE954	     0xA304
 #define PCI_DEVICE_ID_ADVANTECH_PCIE958	     0xA408
+
+
+#define PCI_DEVICE_ID_ADVANTECH_A821            0xA821
+#define PCI_DEVICE_ID_ADVANTECH_A822            0xA822
+#define PCI_DEVICE_ID_ADVANTECH_A823            0xA823
+#define PCI_DEVICE_ID_ADVANTECH_A824            0xA824
+#define PCI_DEVICE_ID_ADVANTECH_A828            0xA828
+#define PCI_DEVICE_ID_ADVANTECH_A831            0xA831
+#define PCI_DEVICE_ID_ADVANTECH_A832            0xA832
+#define PCI_DEVICE_ID_ADVANTECH_A833            0xA833
+#define PCI_DEVICE_ID_ADVANTECH_A834            0xA834
+#define PCI_DEVICE_ID_ADVANTECH_A838            0xA838
+
+#define PCI_DEVICE_ID_ADVANTECH_A516            0xA516
+#define PCI_DEVICE_ID_ADVANTECH_F500            0xF500
 
 #define ACR_DTR_RS232                          0x00
 #define ACR_DTR_ACTIVE_LOW_RS485               0x10
@@ -460,6 +424,27 @@ static void autoconfig(struct serial_state * state);
 static void change_speed(struct async_struct *info, struct termios *old);
 static void rs_wait_until_sent(struct tty_struct *tty, int timeout);
 
+#ifndef MIN
+#define MIN(a,b) ((a) < (b) ? (a):(b))
+#endif
+
+#define XR_17C15X_EXTENDED_FCTR 8
+#define XR_17C15X_EXTENDED_EFR 9
+#define XR_17C15X_TXFIFO_CNT 10
+#define XR_17C15X_RXFIFO_CNT 11
+#define XR_17C15X_EXTENDED_RXTRG 11
+
+#define XR_17C15X_FCTR_RTS_8DELAY 0x03
+#define XR_17C15X_FCTR_TRGD 192
+
+#define UART_17158_RX_OFFSET 0x100
+#define UART_17158_TX_OFFSET 0x100
+
+#define XR_17C15X_IER_RTSDTR 0x40
+#define XR_17C15X_IER_CTSDSR 0x80
+
+#define PORT_XR17C15X	14
+#define PORT_XR17V25X	15
 /*
  * Here we define the default xmit fifo size used for each type of
  * UART
@@ -482,6 +467,9 @@ static struct serial_uart_config uart_config[] = {
 	{ "XR16850", 128, UART_CLEAR_FIFO | UART_USE_FIFO |
 		  UART_STARTECH },
 	{ "RSA", 2048, UART_CLEAR_FIFO | UART_USE_FIFO }, 
+	{ "XR17C15X", 64, UART_CLEAR_FIFO | UART_USE_FIFO | UART_STARTECH },	// index XR17C15X_UART_CONFIG_INDEX;
+ 	{ "XR17V25X", 64, UART_CLEAR_FIFO | UART_USE_FIFO | UART_STARTECH },	// index XR17V25X_UART_CONFIG_INDEX;
+
 	{ 0, 0}
 };
 
@@ -890,7 +878,7 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 			 * immediately, and doesn't affect the current
 			 * character
 			 */
-			printk("haha,overruns : )\n");
+			//printk("haha,overruns : )\n");
 			*tty->flip.flag_buf_ptr = TTY_OVERRUN;
 			tty->flip.count++;
 			tty->flip.flag_buf_ptr++;
@@ -912,7 +900,7 @@ static _INLINE_ void receive_chars(struct async_struct *info,
 
 static _INLINE_ void transmit_chars(struct async_struct *info, int *intr_done)
 {
-	int count;
+	int count,tmp;
         int num=0;
 	/* printk("transmit_chars:current chars in xmit buffer is %d\n",CIRC_CNT(info->xmit.head,
 		     info->xmit.tail,
@@ -933,19 +921,55 @@ static _INLINE_ void transmit_chars(struct async_struct *info, int *intr_done)
 		serial_out(info, UART_IER, info->IER);
 		return;
 	}
-	//WangMao mask off the line below and add a new one
-	//count = info->xmit_fifo_size;
-	count = 32;
-	do {
-		serial_out(info, UART_TX, info->xmit.buf[info->xmit.tail]);
-		info->xmit.tail = (info->xmit.tail + 1) & (SERIAL_XMIT_SIZE-1);
-		info->state->icount.tx++;
-		num++;
-		if (info->xmit.head == info->xmit.tail)
-			break;
-	} while (--count > 0);
-	//printk("transmit_chars: write down %d chars in this THDI interrupt\n",num);
-	
+	if (info->state->type == PORT_XR17V25X)
+	{
+		count = info->xmit_fifo_size;
+
+		// how much buffer is availabe now to write?
+		count -= serial_in(info, XR_17C15X_TXFIFO_CNT);
+
+		// Is the data to be written is smaller than the available buffer?
+		count = MIN(count, CIRC_CNT(info->xmit.head, info->xmit.tail, SERIAL_XMIT_SIZE));
+
+		do {
+			if( ((info->xmit.tail + count) & (SERIAL_XMIT_SIZE-1)) < info->xmit.tail) {
+				/* Cache this value so we don't do the math multiple times */
+				tmp = SERIAL_XMIT_SIZE - info->xmit.tail;
+
+				memcpy(info->iomem_base + UART_17158_TX_OFFSET,
+					(info->xmit.buf + info->xmit.tail),
+					tmp);
+				count	-= tmp;
+				info->xmit.tail += tmp;
+
+				info->xmit.tail &= (SERIAL_XMIT_SIZE-1);
+				info->state->icount.tx += tmp;
+			} else {
+				memcpy(info->iomem_base + UART_17158_TX_OFFSET,
+				(info->xmit.buf + info->xmit.tail),
+				count);
+				info->xmit.tail += count;
+				count = 0;
+				info->xmit.tail &= (SERIAL_XMIT_SIZE-1);
+				info->state->icount.tx += count;
+			}
+		} while(count > 0);
+	}
+	else
+	{
+		//WangMao mask off the line below and add a new one
+		//count = info->xmit_fifo_size;
+		count = 32;
+		do {
+			serial_out(info, UART_TX, info->xmit.buf[info->xmit.tail]);
+			info->xmit.tail = (info->xmit.tail + 1) & (SERIAL_XMIT_SIZE-1);
+			info->state->icount.tx++;
+			num++;
+			if (info->xmit.head == info->xmit.tail)
+				break;
+		} while (--count > 0);
+		//printk("transmit_chars: write down %d chars in this THDI interrupt\n",num);
+	}
 	//SERIAL_XMIT_SIZE: 4096  WAKEUP_CHARS: 256
 	 if (CIRC_CNT(info->xmit.head,
 		     info->xmit.tail,
@@ -1571,21 +1595,55 @@ static int startup(struct async_struct * info)
 	printk("starting up ttys%d (irq %d)...", info->line, state->irq);
 #endif
 
-	if (uart_config[state->type].flags & UART_STARTECH) {
-		/* Wake up UART */
-		serial_outp(info, UART_LCR, 0xBF);
-		serial_outp(info, UART_EFR, UART_EFR_ECB);
-		/*
-		 * Turn off LCR == 0xBF so we actually set the IER
-		 * register on the XR16C850
-		 */
-		serial_outp(info, UART_LCR, 0);
-		serial_outp(info, UART_IER, 0);
-		/*
-		 * Now reset LCR so we can turn off the ECB bit
-		 */
-		serial_outp(info, UART_LCR, 0xBF);
-		serial_outp(info, UART_EFR, 0);
+	if (uart_config[state->type].flags & UART_STARTECH) 
+	{
+		if (state->type == PORT_XR17V25X)
+		{
+			serial_out(info, XR_17C15X_EXTENDED_EFR, UART_EFR_ECB);
+			serial_out(info, UART_IER, 0);
+
+			/* Set the RX trigger level for 32 bytes, with a Hysteresis level of 8.  */
+			/* These are some default values, the OEMs can change these values
+			 * according to their best case scenarios */
+
+			serial_out(info, XR_17C15X_EXTENDED_RXTRG, 32);
+			if (DefaultACR[state->line] == ACR_DTR_RS232 )
+			{
+				serial_out(info, XR_17C15X_EXTENDED_FCTR, 
+					XR_17C15X_FCTR_TRGD 
+					| XR_17C15X_FCTR_RTS_8DELAY);
+			}
+			else
+			{
+				serial_out(info, XR_17C15X_EXTENDED_FCTR, 
+					XR_17C15X_FCTR_TRGD 
+					| XR_17C15X_FCTR_RTS_8DELAY | 0x20 );
+			}
+
+			serial_outp(info, UART_LCR, 0);
+
+			/* Wake up and initialize UART */
+			serial_out(info, XR_17C15X_EXTENDED_EFR, UART_EFR_ECB);
+			serial_out(info, UART_IER, 0);
+			serial_out(info, UART_LCR, 0);
+		}
+		else
+		{
+			/* Wake up UART */
+			serial_outp(info, UART_LCR, 0xBF);
+			serial_outp(info, UART_EFR, UART_EFR_ECB);
+			/*
+			 * Turn off LCR == 0xBF so we actually set the IER
+			 * register on the XR16C850
+			 */
+			serial_outp(info, UART_LCR, 0);
+			serial_outp(info, UART_IER, 0);
+			/*
+			 * Now reset LCR so we can turn off the ECB bit
+			 */
+			serial_outp(info, UART_LCR, 0xBF);
+			serial_outp(info, UART_EFR, 0);
+		}
 		/*
 		 * For a XR16C850, we need to set the trigger levels
 		 */
@@ -1952,7 +2010,7 @@ static void shutdown(struct async_struct * info)
 static void change_speed(struct async_struct *info,
 			 struct termios *old_termios)
 {
-	int	quot = 0, baud_base, baud;
+	int	quot = 0, quot_fraction, baud_base, baud;
 	unsigned cflag, cval, fcr = 0, efr = 0 , mcr = 0;
 	int	bits;
 	unsigned long	flags;
@@ -2015,6 +2073,7 @@ static void change_speed(struct async_struct *info,
 				baud = 921600 / info->state->custom_divisor;
 			}
 
+
 			serial_icr_write(info, UART_TCR, 0x4);
 			if ( baud <= 230400 ||  quot >= 4)
 			{
@@ -2041,7 +2100,14 @@ static void change_speed(struct async_struct *info,
 	}
 	if (PortType[info->line] & 0x01)
 	{
-		tcr = 4;
+		if ( baud == 50)
+		{
+			tcr = 16;
+		}
+		else
+		{
+			tcr = 4;
+		}
 		if ( baud <= 230400 || quot >= 4)
 		{
 			cpr = 32;
@@ -2121,6 +2187,10 @@ static void change_speed(struct async_struct *info,
 	 */
 	//WangMao mask the line off and add a new one
 	info->IER = UART_IER_MSI | UART_IER_RLSI | UART_IER_RDI;
+	if( info->state->type == PORT_XR17V25X)
+	{
+		info->IER |= XR_17C15X_IER_RTSDTR | XR_17C15X_IER_CTSDSR;
+	}
 	//2007-12-20 lipeng mask the line below
 	//serial_outp(info, UART_IER, info->IER);	/* enable interrupts */
 	//2007-12-20 lipeng modify end
@@ -2287,6 +2357,13 @@ static void change_speed(struct async_struct *info,
 		serial_outp(info, UART_LCR, 0xBF);
 		serial_outp(info, UART_EFR,
 			    (cflag & CRTSCTS) ? UART_EFR_CTS : 0);
+		if(info->state->type == PORT_XR17C15X || info->state->type == PORT_XR17V25X)
+		{
+			serial_outp(info, 
+				XR_17C15X_EXTENDED_EFR, 
+				(cflag & CRTSCTS) ? 
+				UART_EFR_ECB | UART_EFR_RTS | UART_EFR_CTS : UART_EFR_ECB | UART_EFR_RTS);
+		}
 	}
 
 	if (PortType[info->line] & 0x01)
@@ -2301,6 +2378,13 @@ static void change_speed(struct async_struct *info,
 		serial_outp(info, UART_LCR, cval | UART_LCR_DLAB);	/* set DLAB */
 		serial_outp(info, UART_DLL, quot & 0xff);	/* LS of divisor */
 		serial_outp(info, UART_DLM, quot >> 8);		/* MS of divisor */
+	}
+#define XR17V25X_UART_DLD 2
+	if (info->state->type == PORT_XR17V25X)
+	{
+		/* fraction baud rate for 17V25X UARTs */
+		quot_fraction = ( ((baud_base*16)/baud) - (16*quot) );
+		serial_outp(info, XR17V25X_UART_DLD, quot_fraction & 0xf);		
 	}
 	if (info->state->type == PORT_16750)
 		serial_outp(info, UART_FCR, fcr); 	/* set fcr */
@@ -4331,6 +4415,7 @@ static void autoconfig(struct serial_state * state)
 			       SERIAL_NAME, state->line);
 #endif
 			restore_flags(flags);
+
 			return;
 		}
 	}
@@ -4358,6 +4443,15 @@ static void autoconfig(struct serial_state * state)
 		serial_outp(info, UART_LCR, UART_LCR_DLAB);
 		if (serial_in(info, UART_EFR) == 0) {
 			state->type = PORT_16650;
+
+			/* We check for a XR17v25x or XR17v35x
+	 		*0x48 -XR17V258
+			 */
+			scratch = serial_inp(info, 0x8D);
+			if ( scratch == 0x48 ) 
+			{
+				state->type = PORT_XR17V25X;
+			}
 		} else {
 			serial_outp(info, UART_LCR, 0xBF);
 			if (serial_in(info, UART_EFR) == 0)
@@ -4672,6 +4766,10 @@ static void __devinit start_pci_pnp_board(struct pci_dev *dev,
 		case PCI_DEVICE_ID_ADVANTECH_PCI1600_1610:
 			printk("PCI-1610");
 			break;
+		case PCI_DEVICE_ID_ADVANTECH_PCI1600_1611:
+			printk("PCI-1611");
+			configType = UART_TYPE_RS485;
+			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCI1600_1612:	/* Also for UNO-2059 */
 			printk("PCI-1612 / UNO-2059");
 			break;
@@ -4787,8 +4885,20 @@ static void __devinit start_pci_pnp_board(struct pci_dev *dev,
 				bar = PCI_BASE_ADDRESS_0;//ok
 				offset485 = 0x100;//
 		                activeType = ACR_DTR_ACTIVE_LOW_RS485;//
-				//configType = UART_TYPE_RS232;
 				break;
+			case PCI_DEVICE_ID_ADVANTECH_A516:
+				printk( "PCIE958");
+				serial_req.type |=  0x01;
+				serial_req.type |= 0x02;
+				serial_req.type |= 0x10;
+				configFunc = 0;
+
+				base_idx = 13;
+				bar = PCI_BASE_ADDRESS_0;
+				offset485 = 0x100;
+		                activeType = ACR_DTR_ACTIVE_LOW_RS485;
+				break;
+
 			case PCI_DEVICE_ID_ADVANTECH_PCI1601:
 				printk("PCI-1601A/B/AU/BU");
 				configType = UART_TYPE_RS485;
@@ -4833,6 +4943,34 @@ static void __devinit start_pci_pnp_board(struct pci_dev *dev,
 			}
 		}
 
+		if (dev->device == PCI_DEVICE_ID_ADVANTECH_A821
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A822
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A823
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A824
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A828
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A831
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A832
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A833
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A834
+		|| dev->device == PCI_DEVICE_ID_ADVANTECH_A838)
+		{
+			activeType = ACR_DTR_ACTIVE_LOW_RS485;
+			serial_req.type |= 0x20; //Is XR chip
+			printk("Advantech General COM Port Device");
+
+			//UART_TYPE_AUTO: detect 232 or 422/485
+			pci_read_config_dword(dev, PCI_BASE_ADDRESS_0, &port485);
+			len =  pci_resource_len(dev, 0);
+			remap = ioremap(port485, len);
+			config485 = readw(remap + 0x90);
+			//printk("port485 = 0x%x, len = 0x%x, config485=0x%x############\n",port485,len,config485);
+			serial_req.reserved_char[0] = (config485 & (0x01 << k)) ? activeType : ACR_DTR_RS232;
+		
+			iounmap(remap);
+
+			goto done;
+		}
+
 		if(configType == UART_TYPE_RS232)
 		{
 			serial_req.reserved_char[0] = ACR_DTR_RS232;
@@ -4874,7 +5012,14 @@ static void __devinit start_pci_pnp_board(struct pci_dev *dev,
 				len =  pci_resource_len(cfgdev, ((bar-0x10)/0x04));
 				if (pci_resource_flags(cfgdev, ((bar-0x10)/0x04)) & IORESOURCE_MEM) {
 					remap = ioremap(port485, len);
-					config485 = readw(remap + offset485 + k*0x10);
+					if (k < 8)
+					{
+					   config485 = readw(remap + offset485 + k*0x10);
+					}
+					else if ( k >= 8)
+					{
+					   config485 = readw(remap + offset485 + 0x100 + (k-8)*0x10);
+					}
 					//printk(KERN_INFO "configure register = %x\n", config485_958);
 					serial_req.reserved_char[0] = (config485 & (0x01 << base_idx)) ?
 					 activeType : ACR_DTR_RS232;
@@ -5185,6 +5330,7 @@ enum pci_board_num_t {
 	pbn_b0_2_d_921600,
 	pbn_b0_4_d_921600,
 	pbn_b0_8_d_921600,
+	pbn_b0_16_d_921600,
 
 	pbn_b0_bt_1_115200,
 	pbn_b0_bt_1_921600,
@@ -5249,6 +5395,11 @@ enum pci_board_num_t {
 	pbn_computone_4,
 	pbn_computone_6,
 	pbn_computone_8,
+	pbn_b0_1_xr_921600,
+	pbn_b0_2_xr_921600,
+	pbn_b0_3_xr_921600,
+	pbn_b0_4_xr_921600,
+	pbn_b0_8_xr_921600,
 };
 
 static struct pci_board pci_boards[] __devinitdata = {
@@ -5273,6 +5424,7 @@ static struct pci_board pci_boards[] __devinitdata = {
 	{SPCI_FL_BASE0,2,921600,0x200,0,NULL,0x1000}, //pbn_b0_2_d_921600
 	{SPCI_FL_BASE0,4,921600,0x200,0,NULL,0x1000}, //pbn_b0_4_d_921600
 	{SPCI_FL_BASE0,8,921600,0x200,0,NULL,0x1000},	//pbn_b0_8_d_921600
+	{SPCI_FL_BASE0,16,921600,0x200,0,NULL,0x1000},	//pbn_b0_16_d_921600
 
 	{ SPCI_FL_BASE0 | SPCI_FL_BASE_TABLE, 1, 115200 }, /* pbn_b0_bt_1_115200 */
 	{ SPCI_FL_BASE0 | SPCI_FL_BASE_TABLE, 1, 921600 }, /* pbn_b0_bt_1_921600 */
@@ -5363,6 +5515,11 @@ static struct pci_board pci_boards[] __devinitdata = {
 		0x40, 2, NULL, 0x200 },
 	{ SPCI_FL_BASE0, 8, 921600, /* IOMEM */		   /* pbn_computone_8 */
 		0x40, 2, NULL, 0x200 },
+	{ SPCI_FL_BASE0, 1, 921600,0x200 },			/*pbn_b0_1_xr_921600*/
+	{ SPCI_FL_BASE0, 2, 921600,0x200 },			/*pbn_b0_2_xr_921600*/
+	{ SPCI_FL_BASE0, 3, 921600,0x200 },			/*pbn_b0_3_xr_921600*/
+	{ SPCI_FL_BASE0, 4, 921600,0x200 },			/*pbn_b0_4_xr_921600*/
+	{ SPCI_FL_BASE0, 8, 921600,0x200 }, 			/*pbn_b0_8_xr_921600*/
 };
 
 /*
@@ -5486,6 +5643,9 @@ static struct pci_device_id adv_serial_pci_tbl[] __devinitdata = {
 		PCI_DEVICE_ID_ADVANTECH_PCI1600_1610, PCI_ANY_ID, 0, 0, 
 		pbn_b0_4_921600 },
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
+		PCI_DEVICE_ID_ADVANTECH_PCI1600_1611, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
 		PCI_DEVICE_ID_ADVANTECH_PCI1600_1612, PCI_ANY_ID, 0, 0, 
 		pbn_b0_4_921600 },
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
@@ -5546,6 +5706,9 @@ static struct pci_device_id adv_serial_pci_tbl[] __devinitdata = {
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCIE958, 
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
 		pbn_b0_8_d_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A516, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_16_d_921600 },
 	//james dai add end
 	//james dai add 2007/5/27
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCM3614P, 
@@ -5613,6 +5776,36 @@ static struct pci_device_id adv_serial_pci_tbl[] __devinitdata = {
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_F104, 
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
 		pbn_b0_bt_4_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A821, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_1_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A822, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_2_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A823, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_3_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A824, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A828, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_8_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A831, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_1_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A832, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_2_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A833, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_3_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A834, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_xr_921600  },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A838, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_8_xr_921600  },
 	{ 0, }
 };
 
@@ -5688,7 +5881,8 @@ static int __init adv950_init(void)
 	printk("               	UNO-4672 [COM3~COM10]\n");
  	printk("          ICOM: PCI-1601, PCI-1602\n");
  	printk("                PCI-1603, PCI-1604\n");
- 	printk("                PCI-1610, PCI-1612\n");
+ 	printk("                PCI-1610, PCI-1611\n");
+ 	printk("                PCI-1612\n");
  	printk("                PCI-1620, PCI-1622\n");
  	printk("          MIC:  MIC-3611, MIC-3612\n");
 	printk("                MIC-3620, MIC-3621\n");

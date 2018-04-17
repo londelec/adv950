@@ -1,6 +1,6 @@
 //******************************************************************************
 //
-// Copyright (c) 2011 Advantech Industrial Automation Group.
+// Copyright (c) 2017 Advantech Industrial Automation Group.
 //
 // Oxford PCI-954/952/16C950 with Advantech RS232/422/485 capacities
 // 
@@ -23,9 +23,9 @@
 //******************************************************************************
 
 //***********************************************************************
-// File:        8250_pci.c
+// File:      8250_pci.c
+// Author:    Jianfeng Dai
 // 
-// PLEASE SEE 8250.c FOR DETAIL
 //***********************************************************************
 #include <linux/module.h>
 #include <linux/init.h>
@@ -49,8 +49,8 @@
  * Advantech IAG PCI-954/16C950 cards
  *
  */
-#define ADVANTECH_16C950_VER                    "3.33"
-#define ADVANTECH_16C950_DATE                   "11/07/2011"
+#define ADVANTECH_16C950_VER                    "3.41"
+#define ADVANTECH_16C950_DATE                   "03/21/2017"
 #define PCI_VENDOR_ID_ADVANTECH                 0x13fe
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600         0x1600 /* Internal */
 #define PCI_DEVICE_ID_ADVANTECH_PCI1601         0x1601 /* Internal */
@@ -61,6 +61,7 @@
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1601    0x1601
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1602    0x1602
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1610    0x1610
+#define PCI_DEVICE_ID_ADVANTECH_PCI1600_1611    0x1611
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1612    0x1612 /* Also for UNO-2059 */
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1620    0x1620
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600_1622    0x1622
@@ -101,6 +102,22 @@
 #define PCI_DEVICE_ID_ADVANTECH_F101            0xF101
 #define PCI_DEVICE_ID_ADVANTECH_F102            0xF102
 #define PCI_DEVICE_ID_ADVANTECH_F104            0xF104
+
+#define PCI_DEVICE_ID_ADVANTECH_A821            0xA821
+#define PCI_DEVICE_ID_ADVANTECH_A822            0xA822
+#define PCI_DEVICE_ID_ADVANTECH_A823            0xA823
+#define PCI_DEVICE_ID_ADVANTECH_A824            0xA824
+#define PCI_DEVICE_ID_ADVANTECH_A828            0xA828
+#define PCI_DEVICE_ID_ADVANTECH_A831            0xA831
+#define PCI_DEVICE_ID_ADVANTECH_A832            0xA832
+#define PCI_DEVICE_ID_ADVANTECH_A833            0xA833
+#define PCI_DEVICE_ID_ADVANTECH_A834            0xA834
+#define PCI_DEVICE_ID_ADVANTECH_A838            0xA838
+
+#define PCI_DEVICE_ID_ADVANTECH_A516            0xA516
+#define PCI_DEVICE_ID_ADVANTECH_F500            0xF500
+
+
 
 
 #define ACR_DTR_RS232 				0x00
@@ -176,6 +193,7 @@ setup_port(struct serial_private *priv, struct uart_port *port,
 		port->mapbase = base + offset;
 		port->membase = priv->remapped_bar[bar] + offset;
 		port->regshift = regshift;
+		//printk(" port->membase = 0x%x\n",port->membase);
 	} else {
 		port->iotype = UPIO_PORT;
 		port->iobase = base + offset;
@@ -194,7 +212,7 @@ setup_port(struct serial_private *priv, struct uart_port *port,
  * growing *huge*, we use this function to collapse some 70 entries
  * in the PCI table into one, for sanity's and compactness's sake.
  */
-static const unsigned short timedia_single_port[] = {
+/*static const unsigned short timedia_single_port[] = {
 	0x4025, 0x4027, 0x4028, 0x5025, 0x5027, 0
 };
 
@@ -226,7 +244,7 @@ static const struct timedia_struct {
 	{ 2, timedia_dual_port },
 	{ 4, timedia_quad_port },
 	{ 8, timedia_eight_port }
-};
+};*/
 
 
 
@@ -344,6 +362,10 @@ pci_advantech_setup (struct serial_private *priv,
 	case PCI_DEVICE_ID_ADVANTECH_PCI1600_1610:
 		printk("PCI-1610");
 		break;
+	case PCI_DEVICE_ID_ADVANTECH_PCI1600_1611:
+		printk("PCI-1611");
+		configType = UART_TYPE_RS485;
+		break;
 	case PCI_DEVICE_ID_ADVANTECH_PCI1600_1612:	/* Also for UNO-2059 */
 		printk("PCI-1612 / UNO-2059");
 		break;
@@ -415,8 +437,8 @@ pci_advantech_setup (struct serial_private *priv,
 		case PCI_DEVICE_ID_ADVANTECH_PCIE952:
 			printk( "PCIE952");
 			port->unused[1] |=  0x01;//this bit means to use new way to calculate baudrate
-			port->unused[1] |= 0x02;//have DMA
-			port->unused[1] |= 0x10;//is PCIe952/4/8
+			port->unused[1] |= 0x02; //have DMA
+			port->unused[1] |= 0x10; //is PCIe952/4/8
 			configFunc = 0;
 
 			base_idx = 13;//
@@ -441,7 +463,7 @@ pci_advantech_setup (struct serial_private *priv,
 			//configType = UART_TYPE_RS232;
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCIE958:
-			printk( "PCIE958");
+			printk( "PCIE958-DMA");
 			port->unused[1] |=  0x01;
 			port->unused[1] |= 0x02;
 			port->unused[1] |= 0x10;
@@ -452,7 +474,17 @@ pci_advantech_setup (struct serial_private *priv,
 			offset485 = 0x100;//
 			activeType = ACR_DTR_ACTIVE_LOW_RS485;//
 
-			//configType = UART_TYPE_RS232;
+		case PCI_DEVICE_ID_ADVANTECH_A516:
+			printk( "PCIE958-DMA");
+			port->unused[1] |=  0x01;
+			port->unused[1] |= 0x02;
+			port->unused[1] |= 0x10;
+			configFunc = 0;
+
+			base_idx = 13;//
+			bar = PCI_BASE_ADDRESS_0;//ok
+			offset485 = 0x100;//
+			activeType = ACR_DTR_ACTIVE_LOW_RS485;//
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCI1601:
 			printk("PCI-1601A/B/AU/BU");
@@ -498,6 +530,33 @@ pci_advantech_setup (struct serial_private *priv,
 		}
 			
 	}
+	if (dev->device == PCI_DEVICE_ID_ADVANTECH_A821
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A822
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A823
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A824
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A828
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A831
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A832
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A833
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A834
+	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A838)
+	{
+		activeType = ACR_DTR_ACTIVE_LOW_RS485;
+		port->unused[1] |= 0x20; //Is XR chip
+		printk("Advantech General COM Port Device");
+
+		//UART_TYPE_AUTO: detect 232 or 422/485
+		pci_read_config_dword(dev, PCI_BASE_ADDRESS_0, &port485);
+		len =  pci_resource_len(dev, 0);
+		remap = ioremap(port485, len);
+		config485 = readw(remap + 0x90);
+		//printk("port485 = 0x%x, len = 0x%x, config485=0x%x############\n",port485,len,config485);
+		port->unused[0] = (config485 & (0x01 << idx)) ? activeType : ACR_DTR_RS232;
+		
+		iounmap(remap);
+
+		goto done;
+	}
 	if(configType == UART_TYPE_RS232)
 	{
 		port->unused[0] = ACR_DTR_RS232;
@@ -542,9 +601,19 @@ pci_advantech_setup (struct serial_private *priv,
 		}
 		if(port->unused[1] & 0x10){
 			len =  pci_resource_len(cfgdev, ((bar-0x10)/0x04));
+			//printk("port485=0x%x,len=0x%x\n",port485, len);
 			if (pci_resource_flags(cfgdev, ((bar-0x10)/0x04)) & IORESOURCE_MEM) {
 				remap = ioremap(port485, len);
-				config485_958 = readw(remap + offset485 + idx*0x10);
+                                if (idx < 8)
+				{
+				   config485_958 = readw(remap + offset485 + idx*0x10);
+				}
+				else if (idx >= 8)
+				{
+				   //A516
+				   config485_958 = readw(remap + offset485 + 0x100 + (idx - 8)*0x10);	
+				}
+
 				//printk(KERN_INFO "configure register = %x\n", config485_958);
 				port->unused[0] = (config485_958 & (0x01 << base_idx)) ?
 					 activeType : ACR_DTR_RS232;
@@ -620,6 +689,13 @@ static struct pci_serial_quirk pci_serial_quirks[] __refdata = {
 		.vendor		= PCI_VENDOR_ID_ADVANTECH,
 		.device		= PCI_DEVICE_ID_ADVANTECH_PCI1600,
 		.subvendor	= PCI_DEVICE_ID_ADVANTECH_PCI1600_1610,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_PCI1600,
+		.subvendor	= PCI_DEVICE_ID_ADVANTECH_PCI1600_1611,
 		.subdevice	= PCI_ANY_ID,
 		.setup		= pci_advantech_setup,
 	},
@@ -754,6 +830,13 @@ static struct pci_serial_quirk pci_serial_quirks[] __refdata = {
 		.device		= PCI_DEVICE_ID_ADVANTECH_PCIE958,
 		.subvendor	= PCI_VENDOR_ID_ADVANTECH,
 		.subdevice	= PCI_DEVICE_ID_ADVANTECH_PCIE958,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A516,
+		.subvendor	= PCI_VENDOR_ID_ADVANTECH,
+		.subdevice	= PCI_DEVICE_ID_ADVANTECH_A516,
 		.setup		= pci_advantech_setup,
 	},
 	{
@@ -896,7 +979,78 @@ static struct pci_serial_quirk pci_serial_quirks[] __refdata = {
 		.subdevice	= PCI_ANY_ID,
 		.setup		= pci_advantech_setup,
 	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A821,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A822,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A823,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A824,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A828,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A831,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A832,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A833,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A834,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
+	{
+		.vendor		= PCI_VENDOR_ID_ADVANTECH,
+		.device		= PCI_DEVICE_ID_ADVANTECH_A838,
+		.subvendor	= PCI_ANY_ID,
+		.subdevice	= PCI_ANY_ID,
+		.setup		= pci_advantech_setup,
+	},
 };
+
 
 static inline int quirk_id_matches(u32 quirk_id, u32 dev_id)
 {
@@ -960,6 +1114,7 @@ enum pci_board_num_t {
 	pbn_b0_2_d_921600,
 	pbn_b0_4_d_921600,
 	pbn_b0_8_d_921600,
+	pbn_b0_16_d_921600,
 
 	pbn_b0_bt_1_115200,
 	pbn_b0_bt_2_115200,
@@ -1011,6 +1166,13 @@ enum pci_board_num_t {
 
 	pbn_b3_4_115200,
 	pbn_b3_8_115200,
+
+	pbn_b0_1_xr_921600,
+	pbn_b0_2_xr_921600,
+	pbn_b0_3_xr_921600,
+	pbn_b0_4_xr_921600,
+	pbn_b0_8_xr_921600,
+	 
 };
 
 /*
@@ -1022,8 +1184,11 @@ enum pci_board_num_t {
  * in include/linux/serial_reg.h,
  * see first lines of serial_in() and serial_out() in 8250.c
 */
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static struct pciserial_board pci_boards[] = {
+#else
 static struct pciserial_board pci_boards[] __devinitdata = {
+#endif
 	[pbn_default] = {
 		.flags		= FL_BASE0,
 		.num_ports	= 1,
@@ -1092,6 +1257,13 @@ static struct pciserial_board pci_boards[] __devinitdata = {
 	[pbn_b0_8_d_921600] = {
 		.flags		= FL_BASE0,
 		.num_ports	= 8,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.first_offset   = 0x1000,
+	},
+	[pbn_b0_16_d_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 16,
 		.base_baud	= 921600,
 		.uart_offset	= 0x200,
 		.first_offset   = 0x1000,
@@ -1336,6 +1508,54 @@ static struct pciserial_board pci_boards[] __devinitdata = {
 		.base_baud	= 115200,
 		.uart_offset	= 8,
 	},
+
+
+	[pbn_b0_1_xr_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 1,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.reg_shift	= 0,
+		.first_offset	= 0,
+	},
+
+	[pbn_b0_2_xr_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 2,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.reg_shift	= 0,
+		.first_offset	= 0,
+	},
+
+	[pbn_b0_3_xr_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 3,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.reg_shift	= 0,
+		.first_offset	= 0,
+	},
+
+	[pbn_b0_4_xr_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 4,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.reg_shift	= 0,
+		.first_offset	= 0,
+	},
+
+	[pbn_b0_8_xr_921600] = {
+		.flags		= FL_BASE0,
+		.num_ports	= 8,
+		.base_baud	= 921600,
+		.uart_offset	= 0x200,
+		.reg_shift	= 0,
+		.first_offset	= 0,
+	},
+
+
 };
 
 static const struct pci_device_id softmodem_blacklist[] = {
@@ -1347,8 +1567,11 @@ static const struct pci_device_id softmodem_blacklist[] = {
  * guess what the configuration might be, based on the pitiful PCI
  * serial specs.  Returns 0 on success, 1 on failure.
  */
-static int __devinit
-serial_pci_guess_board(struct pci_dev *dev, struct pciserial_board *board)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static int serial_pci_guess_board(struct pci_dev *dev, struct pciserial_board *board)
+#else
+static int __devinit serial_pci_guess_board(struct pci_dev *dev, struct pciserial_board *board)
+#endif
 {
 	const struct pci_device_id *blacklist;
 	int num_iomem, num_port, first_port = -1, i;
@@ -1485,6 +1708,7 @@ adv_pciserial_init_ports(struct pci_dev *dev, const struct pciserial_board *boar
 	serial_port.uartclk = board->base_baud * 16;
 	serial_port.irq = get_pci_irq(dev, board);
 	serial_port.dev = &dev->dev;
+
 	for (i = 0; i < nr_ports; i++) {
 		if (quirk->setup(priv, board, &serial_port, i))
 			break;
@@ -1516,6 +1740,7 @@ void adv_pciserial_remove_ports(struct serial_private *priv)
 {
 	struct pci_serial_quirk *quirk;
 	int i;
+
 	for (i = 0; i < priv->nr; i++)
 		adv_serial8250_unregister_port(priv->line[i]);
 
@@ -1566,8 +1791,11 @@ void adv_pciserial_resume_ports(struct serial_private *priv)
  * Probe one serial board.  Unfortunately, there is no rhyme nor reason
  * to the arrangement of serial ports on a PCI card.
  */
-static int __devinit
-pciserial_init_one(struct pci_dev *dev, const struct pci_device_id *ent)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static int pciserial_init_one(struct pci_dev *dev, const struct pci_device_id *ent)
+#else
+static int __devinit pciserial_init_one(struct pci_dev *dev, const struct pci_device_id *ent)
+#endif
 {
 	struct serial_private *priv;
 	const struct pciserial_board *board;
@@ -1627,8 +1855,11 @@ pciserial_init_one(struct pci_dev *dev, const struct pci_device_id *ent)
 	pci_disable_device(dev);
 	return rc;
 }
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+static void  pciserial_remove_one(struct pci_dev *dev)
+#else
 static void __devexit pciserial_remove_one(struct pci_dev *dev)
+#endif
 {
 	struct serial_private *priv = pci_get_drvdata(dev);
 
@@ -1688,6 +1919,9 @@ static struct pci_device_id serial_pci_tbl[] = {
 		PCI_DEVICE_ID_ADVANTECH_PCI1600_1610, PCI_ANY_ID, 0, 0, 
 		pbn_b0_4_921600 },
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
+		PCI_DEVICE_ID_ADVANTECH_PCI1600_1611, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
 		PCI_DEVICE_ID_ADVANTECH_PCI1600_1612, PCI_ANY_ID, 0, 0, 
 		pbn_b0_4_921600 },
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCI1600, 
@@ -1744,6 +1978,9 @@ static struct pci_device_id serial_pci_tbl[] = {
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCIE958, 
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
 		pbn_b0_8_d_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A516, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_16_d_921600 },
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_PCM3614P, 
 		PCI_SUB_VENDOR_ID_ADVANTECH_PCM3614P, PCI_ANY_ID, 0, 0, 
 		pbn_b0_4_921600 },
@@ -1804,13 +2041,47 @@ static struct pci_device_id serial_pci_tbl[] = {
 	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_F104, 
 		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
 		pbn_b0_bt_4_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A821, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_1_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A822, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_2_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A823, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_3_xr_921600  },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A824, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A828, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_8_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A831, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_1_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A832, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_2_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A833, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_3_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A834, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_4_xr_921600 },
+	{	PCI_VENDOR_ID_ADVANTECH, PCI_DEVICE_ID_ADVANTECH_A838, 
+		PCI_ANY_ID, PCI_ANY_ID, 0, 0, 
+		pbn_b0_8_xr_921600 },
 	{ 0, }
 };
 
 static struct pci_driver serial_pci_driver = {
 	.name		= "advserial",
 	.probe		= pciserial_init_one,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0)
+	.remove		= pciserial_remove_one,
+#else
 	.remove		= __devexit_p(pciserial_remove_one),
+#endif
 #ifdef CONFIG_PM
 	.suspend	= pciserial_suspend_one,
 	.resume		= pciserial_resume_one,
@@ -1835,7 +2106,8 @@ static int __init adv_serial8250_pci_init(void)
 	printk("                UNO-4672 [COM3~COM10]\n");
  	printk("          ICOM: PCI-1601, PCI-1602\n"
 	       "                PCI-1603, PCI-1604\n"
-	       "                PCI-1610, PCI-1612\n"
+	       "                PCI-1610, PCI-1611\n"
+	       "                PCI-1612\n"
 	       "                PCI-1620, PCI-1622\n");
  	printk("          MIC:  MIC-3611, MIC-3612\n");
  	printk("                MIC-3620, MIC-3621\n");
@@ -1868,5 +2140,5 @@ module_init(adv_serial8250_pci_init);
 module_exit(adv_serial8250_pci_exit);
 
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("Generic 8250/16x50 PCI serial probe module");
+MODULE_DESCRIPTION("Advantech IAG PCI-954/16C950 serial probe module");
 MODULE_DEVICE_TABLE(pci, serial_pci_tbl);

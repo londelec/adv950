@@ -1,6 +1,6 @@
 //******************************************************************************
 //
-// Copyright (c) 2011 Advantech Industrial Automation Group.
+// Copyright (c) 2013 Advantech Industrial Automation Group.
 //
 // Oxford PCI-954/952/16C950 with Advantech RS232/422/485 capacities
 // 
@@ -36,95 +36,7 @@
 //            PCI-1610 PCI-1612 PCI-1620 PCI-1622
 //      MIC:  MIC-3611 MIC-3612 MIC-3620 MIC-3621
 //      PCM:  PCM-3614P/I PCM-3641P/I PCM-3618P/I PCM-3681P/I
-// Change Log:
-//      <2004-11-29> 
-//          - Moved code from 2.4.x
-//      <2004-12-02> 
-//          - Fixed UNO-2050 function 1 offset typing error
-//      <2004-12-03> 
-//          - Support FC3
-//      <2004-12-15> 
-//          - Support UART types can be specified by each port
-//            to support some kind of devices did not fully
-//            implement with auto detection
-//      <2004-12-30> 
-//          - Support serial port ioctl TIOCGSERIAL
-//            to get serial type and store at reserved_char[0]
-//      <2005-2-17> 
-//          - Merge some new features in 2.4
-//      <2005-4-25>
-//          - Remove the folder of 'pclterm' from the package
-//          - Test in SuSE 9.2, Mandrake 10.1 and Debian 3.0r2
-//      <2005-5-31>
-//          - Add ICOM cards support
-//            PCI-1601A/B/AU/BU, PCI-1602A/B/AU/BU/UP,
-//            PCI-1603, PCI-1604UP and PCI-1622CU
-//      <2005-6-14>
-//          - Correct PCI-952 2nd port start base address(BAR1)
-//      <2005-6-22>
-//          - Fix 2.4 driver which miss to set auto DTR correctly
-//      <2005-6-24>
-//          - Add code to setup auto DTR after detection
-//      <2005-6-29>
-//          - Fix PCI-1622 ports on function 1 detection problem
-//      <2005-7-22>
-//          - Add support for UNOB-2201CB carrier board
-//          - Add MIC-3612 and MIC-3620 to pci_serial_quirks table
-//          - Change the value of UART_NR to 64
-//      <2005-8-9>
-//          - Fix UNOB-2201CB function 1 detection problem
-//      <2005-11-07>
-//          - Add support for MIC-3611
-//      <2006-2-16>
-//          - Add support for Mandriva Linux 2006
-//      <2006-2-28>
-//          - Add support for SUSE LINUX Enterprise Server 9
-//      <2006-5-24>
-//          - Add support for Debian 3.1r0a (kernel version 2.6.8-2-686) 
-//      <2006-6-08>
-//          - Add support for SUSE LINUX 10.1 and Fedora Core 5
-//      <2006-10-11>
-//          - Add support for UNO-2176
-//      <2007-03-06>
-//          - Fix bug in low active type for 485 mode
-//          - Support Ubuntu 6.06(add UBUNTU_2_6_15) and RedHat Enterprise Server 4
-//          - Support quick response(use quick_respons utility to enable or disable this function)
-//          - Enable 16C950 trigger level and hardware and software flow control
-//      <2007-05-29>
-//          - Add support for PCM-3614P PCM-3641P PCM-3618P PCM-3681P
-//      <2007-09-14>
-//          - Support FC6
-//      <2007-09-30>
-//          - Fix bug in serial8250_get_mctrl
-//      <2008-02-13>
-//          - Fix bug about flow control
-//      <2008-06-20>
-//          - to support FC7 and FC8
-//          - to support UNO-1150
-//          - to support MIC-3621
-//      <2008-07-04>
-//          - to support Ubuntu 8.04
-//      <2008-10-08>
-//          - Source headers comply with GPL
-//          - modify the driver readme
-//      <2008-12-08>
-//          - to support UNO-2679, UNO-4672
-//      <2009-06-03> V3.29
-//          - to support debian 5.0
-//	    - to support patch CONFIG_PREEMPT_RT kernel
-//	    - to support device A001,A002,A004,A101,A102,A104
-//	    - to support device F001,F002,F004,F101,F102,F104
-//      <2010-05-06> V3.30
-//          - to support FC10,FC11,FC12,SUSE 11.2 Madriva 2010
-//	    - to support Advantech General COM port
-//      <2010-05-06> V3.32
-//          - to support FC14, FC14-updata, Debian 6, SUSE 11.3
-//	    - to support device PCIe-952/4/8(have DMA)
-//      <2011-11-07> V3.33
-//          - to support 2.6.37,2.6.38,2.6.39,2.6.40 kenrel
-//***********************************************************************
-//***********************************************************************
-//lipeng modify at 2007/09/07
+
 #include <linux/version.h>
 #ifndef KERNEL_VERSION
 #define  KERNEL_VERSION(a, b, c) KERNEL_VERSION((a)*65536+(b)*256+(c))
@@ -293,6 +205,11 @@ static struct irq_info irq_lists[NR_IRQS];
 //WangMao add the line below to add quick response @v3_20
 static int RTL;
 extern int quick_response;
+#define PORT_XR17V25X 15
+
+#define ACR_DTR_RS232 				0x00
+#define ACR_DTR_ACTIVE_LOW_RS485        	0x10
+#define ACR_DTR_ACTIVE_HIGH_RS485       	0x18
 /*
  * Here we define the default xmit fifo size used for each type of UART.
  */
@@ -316,7 +233,7 @@ extern int quick_response;
 	{ "XR16850",	128,	UART_CLEAR_FIFO | UART_USE_FIFO | UART_STARTECH },
 	{ "RSA",	2048,	UART_CLEAR_FIFO | UART_USE_FIFO },
 	{ "NS16550A",	16,	UART_CLEAR_FIFO | UART_USE_FIFO | UART_NATSEMI },
-	{ "XScale",	32,	UART_CLEAR_FIFO | UART_USE_FIFO  }
+	{ "XR17v25x",	64,	UART_CLEAR_FIFO | UART_USE_FIFO  }
 };
 
 static _INLINE_ unsigned int serial_in(struct uart_8250_port *up, int offset)
@@ -618,8 +535,9 @@ static void autoconfig_8250(struct uart_8250_port *up)
 static void autoconfig_16550a(struct uart_8250_port *up)
 {
 	unsigned char status1, status2;
-
+	unsigned int id1;
 	up->port.type = PORT_16550A;
+
 
 	/*
 	 * Check for presence of the EFR when DLAB is set.
@@ -631,6 +549,14 @@ static void autoconfig_16550a(struct uart_8250_port *up)
 		if (serial_in(up, UART_EFR) != 0) {
 			DEBUG_AUTOCONF("EFRv1 ");
 			up->port.type = PORT_16650;
+			/* We check for a XR17v25x or XR17v35x
+	 		*0x48 -XR17V258
+			 */
+			id1 = serial_in(up, 0x8D);
+			if ( id1 == 0x48 ) 
+			{
+				up->port.type = PORT_XR17V25X;
+			}
 		} else {
 			DEBUG_AUTOCONF("Motorola 8xxx DUART ");
 		}
@@ -725,10 +651,8 @@ static void autoconfig(struct uart_8250_port *up, unsigned int probeflags)
 	unsigned char status1, scratch, scratch2, scratch3;
 	unsigned char save_lcr, save_mcr;
 	unsigned long flags;
-
 	if (!up->port.iobase && !up->port.mapbase && !up->port.membase)
 		return;
-
 	DEBUG_AUTOCONF("%s%d: autoconf (0x%04x, 0x%p): ", SERIAL_NAME,
 			up->port.line, up->port.iobase, up->port.membase);
 
@@ -765,12 +689,12 @@ static void autoconfig(struct uart_8250_port *up, unsigned int probeflags)
 #ifdef __i386__
 		outb(0xff, 0x080);
 #endif
-		scratch2 = serial_inp(up, UART_IER);
+		scratch2 = serial_inp(up, UART_IER) & 0x0f;
 		serial_outp(up, UART_IER, 0x0F);
 #ifdef __i386__
 		outb(0, 0x080);
 #endif
-		scratch3 = serial_inp(up, UART_IER);
+		scratch3 = serial_inp(up, UART_IER) & 0xf;
 		serial_outp(up, UART_IER, scratch);
 		if (scratch2 != 0 || scratch3 != 0x0F) {
 			/*
@@ -1039,7 +963,7 @@ static void serial8250_enable_ms(struct uart_port *port)
 //lipeng modify at 06/08/2006
 //James.dai maks the line off and add a new one @V3.20 to support ubuntu6
 //#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 15)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 11)
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 11)
 static _INLINE_ void
 receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 {
@@ -1051,8 +975,8 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 	if(up->port.unused[1] & 0x02)
 	{
 		int flags;
-		unsigned char save_rfl;	
-
+		unsigned char save_rfl,freecount,overrunflag;;	
+		overrunflag = 0;
 		//jinxin added to get number of chars in the receiver FIFO from RFL 
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr|0x80);
@@ -1060,8 +984,7 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr);
 		count  = (up->port.fifosize < save_rfl)? up->port.fifosize: save_rfl;
-		if (count > TTY_FLIPBUF_SIZE - tty->flip.count)
-		count = TTY_FLIPBUF_SIZE - tty->flip.count;
+
 		//printk(KERN_INFO "RFL=%d,count=%d,", save_rfl, count);
 
 		//firstly clear DMA status register
@@ -1075,12 +998,31 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
     		} while (flags & DMAACT);
 		//ASSERT(!(flags & DMAERR));
 		//temp = tty_insert_flip_string(tty, (unsigned char *)up->rx_ring, count);
+
+		if (count > TTY_FLIPBUF_SIZE - tty->flip.count)
+		{
+			count = TTY_FLIPBUF_SIZE - tty->flip.count;
+			overrunflag = 1;
+		}
+
 		memcpy(tty->flip.char_buf_ptr, (unsigned char *)up->rx_ring, count);
 		memset(tty->flip.flag_buf_ptr, TTY_NORMAL, count);
 		tty->flip.char_buf_ptr += count;
 		tty->flip.flag_buf_ptr += count;
 		tty->flip.count += count;
 		up->port.icount.rx += count;
+		if (*status & UART_LSR_OE || overrunflag )
+		{
+			up->port.icount.overrun++;
+			if ((*status & up->port.read_status_mask & UART_LSR_OE) &&
+		    		tty->flip.count < TTY_FLIPBUF_SIZE) {
+				*tty->flip.flag_buf_ptr = TTY_OVERRUN;
+				tty->flip.flag_buf_ptr++;
+				tty->flip.char_buf_ptr++;
+				tty->flip.count++;
+				}
+		}
+		
 	}
 	else
 	{
@@ -1177,11 +1119,11 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 	char flag;
 	if(up->port.unused[1] & 0x02)
 	{
-		unsigned int count;
+		unsigned int count, freecount,overrunflag;
         	//unsigned int temp;
 		int flags;
 		unsigned char save_rfl;	
-
+		overrunflag = 0;
 		//jinxin added to get number of chars in the receiver FIFO from RFL 
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr|0x80);
@@ -1189,13 +1131,7 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr);
 		count  = (up->port.fifosize < save_rfl)? up->port.fifosize: save_rfl;
-		//ensure tty core has enough space
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 15)
-		count  = tty_buffer_request_room(tty, count);
-#else
-		if (count > TTY_FLIPBUF_SIZE - tty->flip.count)
-			count = TTY_FLIPBUF_SIZE - tty->flip.count;
-#endif
+
 		//printk(KERN_INFO "RFL=%d,count=%d,", save_rfl, count);
 
 		//firstly clear DMA status register
@@ -1208,6 +1144,18 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 			flags = readl(up->port.membase + DMASTA);
 	    	} while (flags & DMAACT);
 		//ASSERT(!(flags & DMAERR));
+		//ensure tty core has enough space
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 15)
+		freecount  = tty_buffer_request_room(tty, count);
+#else
+		freecount = TTY_FLIPBUF_SIZE - tty->flip.count;
+#endif
+		if (count > freecount)
+		{
+			count = freecount;
+			overrunflag = 1;
+		}
+		
 	#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 15)
 		tty_insert_flip_string(tty, (unsigned char *)up->rx_ring, count);
 	#else
@@ -1217,7 +1165,16 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 		tty->flip.flag_buf_ptr += count;
 		tty->flip.count += count;
 	#endif
-		up->port.icount.rx += count;
+		up->port.icount.rx += count;		
+		if (lsr & UART_LSR_OE || overrunflag )
+		{
+			up->port.icount.overrun++;
+        		if (lsr & ~up->port.read_status_mask & UART_LSR_OE)
+			{
+                		tty_insert_flip_char(tty, 0, TTY_OVERRUN);
+			}
+		}
+
 	}
 	else
 	{
@@ -1315,9 +1272,9 @@ receive_chars(struct uart_8250_port *up, int *status, struct pt_regs *regs)
 static _INLINE_ void transmit_chars(struct uart_8250_port *up)
 {
 	struct circ_buf *xmit = &up->port.info->xmit;
-	int count = 0;
+	int count = 0,,bytes_in_fifo,tmp;;
 	unsigned int flags;	
-	//unsigned char save_tfl;
+	unsigned char save_tfl;
 
 	if (up->port.x_char) {
 		serial_outp(up, UART_TX, up->port.x_char);
@@ -1329,14 +1286,51 @@ static _INLINE_ void transmit_chars(struct uart_8250_port *up)
 		serial8250_stop_tx(&up->port, 0);
 		return;
 	}
+	if (up->port.type == PORT_XR17V25X)
+	{
+		bytes_in_fifo = serial_in(up, XR_17V25X_TXFIFO_CNT);
+		// read the fifo count untill we get the same value twice
+		while (bytes_in_fifo != serial_inp(up, XR_17V25X_TXFIFO_CNT))
+			bytes_in_fifo = serial_inp(up, XR_17V25X_TXFIFO_CNT);
+	
+		// how much buffer is availabe now to write?	
+		count = up->port.fifosize - bytes_in_fifo;
+		if (uart_circ_chars_pending(xmit) < count)
+			count = uart_circ_chars_pending(xmit);
+	
+		do
+		{	
+			// if the count is more than (tail to end of the buffer), transmit only the rest here.
+			// tail+tmp&(UART_XMIT_SIZE-1) will reset the tail to the starting of the circular buffer
+			if( ((xmit->tail + count) & (UART_XMIT_SIZE-1)) < xmit->tail)
+			{			
+				tmp = UART_XMIT_SIZE - xmit->tail;
+				memcpy(up->port.membase + UART_17V25X_TX_OFFSET, &(xmit->buf[xmit->tail]), tmp);
+				xmit->tail += tmp;
+				xmit->tail &= (UART_XMIT_SIZE-1);
+				up->port.icount.tx += tmp;
 
-	if(up->port.unused[1] & 0x02)
+				count	-= tmp;
+			}
+			else
+			{		
+				memcpy(up->port.membase + UART_17V25X_TX_OFFSET, &(xmit->buf[xmit->tail]), count);	
+				xmit->tail += count;
+				xmit->tail &= UART_XMIT_SIZE - 1;
+	
+				up->port.icount.tx += count;
+				count = 0;
+			}
+	
+		}while (count > 0);
+	}
+	else if(up->port.unused[1] & 0x02)
 	{
 
 		//jinxin added to get number of chars in the receiver FIFO from RFL 
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr|0x80);
-		//save_tfl = serial_in(up, UART_TFL);
+		save_tfl = serial_in(up, UART_TFL);
 		serial_out(up, UART_SCR, UART_ACR);
 		serial_out(up, UART_ICR, up->acr);
 		//printk(KERN_INFO "save_tfl=%d,", save_tfl);
@@ -1345,7 +1339,8 @@ static _INLINE_ void transmit_chars(struct uart_8250_port *up)
 	        //count = MIN(count, 64);
 		//count = MIN(count,uart_circ_chars_pending(xmit));
 		//printk(KERN_INFO "count=%d\n", count);
-		count = (uart_circ_chars_pending(xmit) < up->port.fifosize)? uart_circ_chars_pending(xmit):up->port.fifosize;
+		count = (uart_circ_chars_pending(xmit) < (up->port.fifosize - save_tfl) )? uart_circ_chars_pending(xmit):(up->port.fifosize - save_tfl) ;
+		count = MIN(count, save_tfl );
 
 		if ((xmit->tail + count) > (UART_XMIT_SIZE - 1))
 		{
@@ -1786,6 +1781,7 @@ static void serial8250_break_ctl(struct uart_port *port, int break_state)
 static int serial8250_startup(struct uart_port *port)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
+	//unsigned char old_mcr = 0;
 #ifndef CONFIG_PREEMPT_RT
 	unsigned long flags;
 #endif
@@ -1824,6 +1820,38 @@ static int serial8250_startup(struct uart_port *port)
 		serial_icr_write(up,UART_FCH,72);
 		//lipeng modify end
 		//WangMao add end
+	}
+	else if (port->type == PORT_XR17V25X)
+	{
+		serial_out(up, XR_17V25X_EXTENDED_EFR, UART_EFR_ECB);
+		serial_out(up, UART_IER, 0);
+
+		/* Set the RX trigger level for 32 bytes, with a Hysteresis level of 8.  */
+		/* These are some default values, the OEMs can change these values
+			* according to their best case scenarios */
+
+		serial_out(up, XR_17V25X_EXTENDED_RXTRG, 32);
+		
+		if (up->port.unused[0] == ACR_DTR_RS232)
+		{
+			serial_out(up, XR_17V25X_EXTENDED_FCTR, XR_17V25X_FCTR_TRGD | XR_17V25X_FCTR_RTS_8DELAY);
+		}
+		else // 422/485
+		{
+			serial_out(up, XR_17V25X_EXTENDED_FCTR, XR_17V25X_FCTR_TRGD | XR_17V25X_FCTR_RTS_8DELAY | 0x20 );//0x20 to enable RS485 Direction
+			/* Jianfeng add to set DTR control RS-485 Direction, default is use RTS
+			old_mcr = serial_inp(up, UART_MCR);
+			old_mcr |= 0x04;
+			serial_out(up, UART_MCR, mcr);
+			*/
+		}
+
+		serial_outp(up, UART_LCR, 0);
+
+		/* Wake up and initialize UART */
+		serial_out(up, XR_17V25X_EXTENDED_EFR, UART_EFR_ECB);
+		serial_out(up, UART_IER, 0);
+		serial_out(up, UART_LCR, 0);
 	}
 
 #ifdef CONFIG_SERIAL_8250_RSA
@@ -2084,7 +2112,7 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 	unsigned char cval, fcr = 0 ;
 	unsigned efr = 0;
 	unsigned long flags;
-	unsigned int baud, quot;
+	unsigned int baud, quot,quot_fraction=0;
 	unsigned int  dlldlm, cpr, tcr;
 	//unsigned int save_mcr, save_lcr, dll, dlm;
 
@@ -2127,6 +2155,11 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 #endif
 //lipeng modify end
 	quot = serial8250_get_divisor(port, baud);
+
+	if(up->port.type == PORT_XR17V25X )
+	{
+		quot_fraction = ( (port->uartclk/baud) - (16*quot)); //for Xr chip
+	}
 
 	/*
 	 * Work around a bug in the Oxford Semiconductor 952 rev B
@@ -2386,7 +2419,14 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 	if(up->port.unused[1] & 0x01){
 		//printk(KERN_INFO "quot=%x,", quot);
 		////////////////////
-		tcr = 4;
+		if ( baud == 50)
+		{
+			tcr = 16;
+		}
+		else
+		{
+			tcr = 4;
+		}
 		if ( quot >= 4)
 		{
 			cpr = 32;
@@ -2424,6 +2464,11 @@ serial8250_set_termios(struct uart_port *port, struct ktermios *termios,
 		serial_outp(up, UART_LCR, up->lcr | UART_LCR_DLAB);	/* set DLAB */
 		serial_outp(up, UART_DLL, quot & 0xff);		/* LS of divisor */
 		serial_outp(up, UART_DLM, quot >> 8);		/* MS of divisor */
+	}
+
+	if(up->port.type == PORT_XR17V25X )
+	{
+		serial_outp(up, XR_17V25X_EXTENDED_EFR, termios->c_cflag & CRTSCTS ? UART_EFR_CTS :0);
 	}
 	/*
 	 * LCR DLAB must be set to enable 64-byte FIFO mode. If the FCR
@@ -2480,69 +2525,94 @@ serial8250_pm(struct uart_port *port, unsigned int state,
 	      unsigned int oldstate)
 {
 	struct uart_8250_port *up = (struct uart_8250_port *)port;
-	if (state) {
-		/* sleep */
-		if (up->capabilities & UART_STARTECH) {
-			/* Arrange to enter sleep mode */
-			serial_outp(up, UART_LCR, 0xBF);
-			serial_outp(up, UART_EFR, UART_EFR_ECB);
-			serial_outp(up, UART_LCR, 0);
+	if (up->port.type == PORT_XR17V25X)
+	{
+		if (state) {
+			/* sleep */
+			serial_outp(up, XR_17V25X_EXTENDED_EFR, UART_EFR_ECB);
 			serial_outp(up, UART_IER, UART_IERX_SLEEP);
-			serial_outp(up, UART_LCR, 0xBF);
-			serial_outp(up, UART_EFR, 0);
-			serial_outp(up, UART_LCR, 0);
-		}
-		if (up->port.type == PORT_16750) {
-			/* Arrange to enter sleep mode */
-			serial_outp(up, UART_IER, UART_IERX_SLEEP);
-		}
-
-		if (up->pm)
-			up->pm(port, state, oldstate);
-	} else {
-		/* wake */
-		if (up->capabilities & UART_STARTECH) {
+			serial_outp(up, XR_17V25X_EXTENDED_EFR, 0);
+				
+			//if (up->pm)
+			//	up->pm(port, state, oldstate);
+		} else {
+			/* wake */
+		
 			/* Wake up UART */
-			serial_outp(up, UART_LCR, 0xBF);
-			serial_outp(up, UART_EFR, UART_EFR_ECB);
-			/*
-			 * Turn off LCR == 0xBF so we actually set the IER
-			 * register on the XR16C850
-			 */
-			serial_outp(up, UART_LCR, 0);
+			serial_outp(up, XR_17V25X_EXTENDED_EFR, UART_EFR_ECB);
 			serial_outp(up, UART_IER, 0);
-			/*
-			 * Now reset LCR so we can turn off the ECB bit
-			 */
-			serial_outp(up, UART_LCR, 0xBF);
-			serial_outp(up, UART_EFR, 0);
-			/*
-			 * For a XR16C850, we need to set the trigger levels
-			 */
-			if (up->port.type == PORT_16850) {
-				unsigned char fctr;
+			serial_outp(up, XR_17V25X_EXTENDED_EFR, 0);
 
-				fctr = serial_inp(up, UART_FCTR) &
-					 ~(UART_FCTR_RX | UART_FCTR_TX);
-				serial_outp(up, UART_FCTR, fctr |
-						UART_FCTR_TRGD |
-						UART_FCTR_RX);
-				serial_outp(up, UART_TRG, UART_TRG_96);
-				serial_outp(up, UART_FCTR, fctr |
-						UART_FCTR_TRGD |
-						UART_FCTR_TX);
-				serial_outp(up, UART_TRG, UART_TRG_96);
+			if (up->pm)
+				up->pm(port, state, oldstate);
+		}
+	}
+	else
+	{
+		if (state) {
+			/* sleep */
+			if (up->capabilities & UART_STARTECH) {
+				/* Arrange to enter sleep mode */
+				serial_outp(up, UART_LCR, 0xBF);
+				serial_outp(up, UART_EFR, UART_EFR_ECB);
+				serial_outp(up, UART_LCR, 0);
+				serial_outp(up, UART_IER, UART_IERX_SLEEP);
+				serial_outp(up, UART_LCR, 0xBF);
+				serial_outp(up, UART_EFR, 0);
+				serial_outp(up, UART_LCR, 0);
 			}
-			serial_outp(up, UART_LCR, 0);
-		}
+			if (up->port.type == PORT_16750) {
+				/* Arrange to enter sleep mode */
+				serial_outp(up, UART_IER, UART_IERX_SLEEP);
+			}
 
-		if (up->port.type == PORT_16750) {
-			/* Wake up UART */
-			serial_outp(up, UART_IER, 0);
-		}
+			if (up->pm)
+				up->pm(port, state, oldstate);
+		} else {
+			/* wake */
+			if (up->capabilities & UART_STARTECH) {
+				/* Wake up UART */
+				serial_outp(up, UART_LCR, 0xBF);
+				serial_outp(up, UART_EFR, UART_EFR_ECB);
+				/*
+				 * Turn off LCR == 0xBF so we actually set the IER
+				 * register on the XR16C850
+				 */
+				serial_outp(up, UART_LCR, 0);
+				serial_outp(up, UART_IER, 0);
+				/*
+				 * Now reset LCR so we can turn off the ECB bit
+				 */
+				serial_outp(up, UART_LCR, 0xBF);
+				serial_outp(up, UART_EFR, 0);
+				/*
+				 * For a XR16C850, we need to set the trigger levels
+				 */
+				if (up->port.type == PORT_16850) {
+					unsigned char fctr;
 
-		if (up->pm)
-			up->pm(port, state, oldstate);
+					fctr = serial_inp(up, UART_FCTR) &
+						 ~(UART_FCTR_RX | UART_FCTR_TX);
+					serial_outp(up, UART_FCTR, fctr |
+							UART_FCTR_TRGD |
+							UART_FCTR_RX);
+					serial_outp(up, UART_TRG, UART_TRG_96);
+					serial_outp(up, UART_FCTR, fctr |
+							UART_FCTR_TRGD |
+							UART_FCTR_TX);
+					serial_outp(up, UART_TRG, UART_TRG_96);
+				}
+				serial_outp(up, UART_LCR, 0);
+			}
+
+			if (up->port.type == PORT_16750) {
+				/* Wake up UART */
+				serial_outp(up, UART_IER, 0);
+			}
+
+			if (up->pm)
+				up->pm(port, state, oldstate);
+		}
 	}
 }
 
@@ -2704,7 +2774,6 @@ static void serial8250_config_port(struct uart_port *port, int flags)
 	if (up->port.flags & UPF_BOOT_ONLYMCA && !MCA_bus)
 		return;
 #endif
-	//printk("serial8250_config_port\n");
 	/*
 	 * Find the region that we can probe for.  This in turn
 	 * tells us whether we can probe for the type of port.
@@ -2722,7 +2791,9 @@ static void serial8250_config_port(struct uart_port *port, int flags)
 	//}
 
 	if (flags & UART_CONFIG_TYPE)
+	{
 		autoconfig(up, probeflags);
+	}
 	if (up->port.type != PORT_UNKNOWN && flags & UART_CONFIG_IRQ)
 		autoconfig_irq(up);
 

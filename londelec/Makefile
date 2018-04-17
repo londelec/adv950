@@ -28,7 +28,7 @@ obj-m := adv950.o
 adv950-objs := 8250.o 8250_pci.o
 else
 	#KDIR := /lib/modules/$(shell uname -r)/build/
-	KDIR := /home/dell/Documents/Electronics/C/adv950/linux-source-4.4.0/
+	KDIR := /home/dell/Desktop/linux-source-4.4.0/
 	PWD  := $(shell pwd)
 all:	
 	$(MAKE) -w -C $(KDIR) SUBDIRS=$(PWD) modules

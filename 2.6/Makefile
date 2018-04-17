@@ -23,13 +23,9 @@ ifeq "$(UNAME)""2.6.15-26-386"
 SERIAL_FLAGS:= $(SERIAL_FLAGS) -DUBUNTU_2_6_15=1
 else  
 ifeq "$(UNAME)""2.6.9-34.EL" 
-SERIAL_FLAGS:= $(SERIAL_FLAGS) -DRHE4SMP=0
+SERIAL_FLAGS:= $(SERIAL_FLAGS) -DRHE34EL
 else 
-ifeq "$(UNAME)""2.6.9-34.ELsmp" 
-SERIAL_FLAGS:= $(SERIAL_FLAGS) -DRHE4SMP=1
-else
 SERIAL_FLAGS:= $(SERIAL_FLAGS) -DUBUNTU_2_6_15=0
-endif
 endif
 endif
 
@@ -46,11 +42,13 @@ endif
 
 
 install:
-	$(shell if grep $(ADVMOD) /proc/modules > /dev/null ; then \
-	 rmmod $(ADVMOD) ; fi)
-	@insmod $(ADVMOD).ko
+	@echo "Intalling the advantech serial driver..."
+	@echo "Please wait..."
+	$(shell ! [ -d /lib/modules/$(shell uname -r)/kernel/drivers/adv950 ] && mkdir /lib/modules/$(shell uname -r)/kernel/drivers/adv950)
+	$(shell [ -f adv950.ko ]  && cp ./adv950.ko /lib/modules/$(shell uname -r)/kernel/drivers/adv950/ && depmod && modprobe adv950)
+	@echo "Done"
 
-node: default install
+node: 
 	@echo "Creating serial device nodes $(SERIAL_NAME) ..."
 	@chmod 777 ../advmknod
 	@../advmknod $(SERIAL_NAME) \

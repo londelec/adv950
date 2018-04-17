@@ -11,14 +11,17 @@
  * (at your option) any later version.
  */
 
+#include <linux/version.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0)
 #include <linux/serial_8250.h>
+#endif
+
 void adv_uart_write_wakeup(struct uart_port *port);
 int adv_uart_resume_port(struct uart_driver *drv, struct uart_port *uport);
 void adv_serial8250_resume_port(int line);
 int adv_uart_suspend_port(struct uart_driver *drv, struct uart_port *uport);
 void adv_serial8250_suspend_port(int line);
-void adv_uart_configure_port(struct uart_driver *drv, struct uart_state *state,
-		    struct uart_port *port);
+void adv_uart_configure_port(struct uart_driver *drv, struct uart_state *state,struct uart_port *port);
 int adv_uart_match_port(struct uart_port *port1, struct uart_port *port2);
 int adv_serial8250_register_port(struct uart_port *port);
 int __init adv_serial8250_init(void);
@@ -29,10 +32,49 @@ int adv_uart_add_one_port(struct uart_driver *drv, struct uart_port *uport);
 void __exit adv_serial8250_exit(void);
 void adv_uart_unregister_driver(struct uart_driver *drv);
 void adv_serial8250_unregister_port(int line);
-unsigned int
-adv_uart_get_divisor(struct uart_port *port, unsigned int baud);
-void uart_configure_port(struct uart_driver *drv, struct uart_state *state,
-		    struct uart_port *port);
+unsigned int adv_uart_get_divisor(struct uart_port *port, unsigned int baud);
+void uart_configure_port(struct uart_driver *drv, struct uart_state *state,struct uart_port *port);
+void adv_uart_insert_char(struct uart_port *port, unsigned int status,unsigned int overrun, unsigned int ch, unsigned int flag);
+void adv_uart_handle_dcd_change(struct uart_port *uport, unsigned int status);
+void adv_uart_handle_cts_change(struct uart_port *uport, unsigned int status);
+void adv_uart_configure_port(struct uart_driver *drv, struct uart_state *state,struct uart_port *port);
+
+
+
+struct uart_8250_port {
+	struct uart_port	port;
+	struct timer_list	timer;		/* "no irq" timer */
+	struct list_head	list;		/* ports on this IRQ */
+	unsigned short		capabilities;	/* port capabilities */
+	unsigned short		bugs;		/* port bugs */
+	unsigned int		tx_loadsz;	/* transmit fifo load size */
+	unsigned char		acr;
+	unsigned char		ier;
+	unsigned char		lcr;
+	unsigned char		mcr;
+	unsigned char		mcr_mask;	/* mask of user bits */
+	unsigned char		mcr_force;	/* mask of forced bits */
+	unsigned char		cur_iotype;	/* Running I/O type */
+	dma_addr_t	     	rx_ring_dma;
+	dma_addr_t 		tx_ring_dma;
+	unsigned char 		*rx_ring;
+	unsigned char 		*tx_ring;
+
+	/*
+	 * Some bits in registers are cleared on a read, so they must
+	 * be saved whenever the register is read but the bits will not
+	 * be immediately processed.
+	 */
+#define LSR_SAVE_FLAGS UART_LSR_BRK_ERROR_BITS
+	unsigned char		lsr_saved_flags;
+#define MSR_SAVE_FLAGS UART_MSR_ANY_DELTA
+	unsigned char		msr_saved_flags;
+
+	/* 8250 specific callbacks */
+	int			(*dl_read)(struct uart_8250_port *);
+	void			(*dl_write)(struct uart_8250_port *, int);
+};
+
 
 struct old_serial_port {
 	unsigned int uart;
@@ -57,7 +99,29 @@ struct serial8250_config {
 	unsigned char	fcr;
 	unsigned int	flags;
 };
-/////////////
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+unsigned char serial8250_rx_chars(struct uart_8250_port *up, unsigned char lsr);
+void serial8250_tx_chars(struct uart_8250_port *up);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
+
+static inline int serial_port_in(struct uart_port *up, int offset)
+{
+	return up->serial_in(up, offset);
+}
+
+static inline void serial_port_out(struct uart_port *up, int offset, int value)
+{
+	up->serial_out(up, offset, value);
+}
+
+void serial8250_tx_chars(struct uart_8250_port *up);
+#define UPF_BUG_THRE		((__force upf_t) (1 << 26))
+
+#endif
+
 #define TX_BUF_TOT_LEN 128
 #define RX_BUF_TOT_LEN 128
 //DMA registers
@@ -71,7 +135,11 @@ struct serial8250_config {
 #define DMAACT	(1UL << 0)
 #define DMAERR	(1UL << 1)
 #define DMADONE	(1UL << 2) 
-//////////////
+
+#ifndef CDTRDSR
+#define CDTRDSR	  004000000000  /* DTR/DSR flow control */
+#endif
+
 #define UART_CAP_FIFO	(1 << 8)	/* UART has FIFO */
 #define UART_CAP_EFR	(1 << 9)	/* UART has EFR */
 #define UART_CAP_SLEEP	(1 << 10)	/* UART has IER sleep */
@@ -94,6 +162,55 @@ struct serial8250_config {
 #else
 #define SERIAL8250_SHARE_IRQS 0
 #endif
+
+
+/*
+ * The special register set for XR17v25x UARTs.
+ */
+
+#define XR_17V25X_EXTENDED_FCTR		8
+#define XR_17V25X_EXTENDED_EFR		9
+#define XR_17V25X_TXFIFO_CNT		10
+#define XR_17V25X_RXFIFO_CNT		11
+#define XR_17V25X_EXTENDED_RXTRG	11
+
+#define XR_17V25X_FCTR_RTS_8DELAY	0x03
+#define XR_17V25X_FCTR_TRGD		192
+
+/* 17V15X TX/RX memory mapped buffer offsets */
+
+#define UART_17V25X_RX_OFFSET		0x100
+#define UART_17V25X_TX_OFFSET 		0x100
+
+/*
+ * These are the EXTENDED definitions for the 17V25X's Interrupt
+ * Enable Register
+ */
+#define	XR_17V25X_IER_RTSDTR	0x40
+#define XR_17V25X_IER_CTSDSR	0x80
+
+
+static inline int serial_in(struct uart_8250_port *up, int offset)
+{
+	return up->port.serial_in(&up->port, offset);
+}
+
+static inline void serial_out(struct uart_8250_port *up, int offset, int value)
+{
+	up->port.serial_out(&up->port, offset, value);
+}
+
+void serial8250_clear_and_reinit_fifos(struct uart_8250_port *p);
+
+static inline int serial_dl_read(struct uart_8250_port *up)
+{
+	return up->dl_read(up);
+}
+
+static inline void serial_dl_write(struct uart_8250_port *up, int value)
+{
+	up->dl_write(up, value);
+}
 
 #if defined(__alpha__) && !defined(CONFIG_PCI)
 /*

@@ -1,8 +1,8 @@
 =============================================================================
 	   ADVANTECH industrial comunication cards device driver
 			 Installation Guide
-		    for Linux Kernel 2.4.x,2.6.x,3.x
-	   Copyright (C) 2011, Advantech eAutomation Division.
+		    for Linux Kernel 2.4.x/2.6.x/3.x_and_later
+	   Copyright (C) 2012, Advantech eAutomation Division.
 =============================================================================
 
 This README file describes the HOW-TOs of driver installation.
@@ -119,13 +119,33 @@ Version 3.32 <2010-08-11>
       - fix bug for general COM port information
       - add support Fedora 14
       - fix bug about stty
-Version 3.33 <2010-11-07>
+Version 3.33 <2011-11-07>
       - support 2.6.37,2.6.38,2.6.39 and 3.x kernel
       - support PCIe-1620
-Version 4.4.0-116 <2018-03-23>
-      - adapted for 4.4.0-116 kernel source from Ubuntu 16.04 LTS
-        built and tested with kernel 4.4.0-116-londelec
-
+version 3.34 <2012-03-08>
+      - support 2.6.8 kernel of debian 3.1r0a with devfs
+      - support RedHat Enterprise Linux 4.3 (2.6.9-55.EL)
+      - support debian 6.04 with 486 kernel in UNO-2050 ( 2.6.32-5-486)
+version 3.35 <2012-03-26>
+      - support 2.6.36 kernel
+version 3.36 <2012-05-02>
+      - support 2.6.30 kernel for SliTaz 3.0
+      - support A003 device
+      - support PCI-1611 card (Device ID: 1600, subVendorID: 1611)
+      - fix bug for PCIe-1620 DMA
+version 3.37 <2012-11-09>
+      - support 3.2, 3.3, 3.4,3.5 kernel ( test in Ubuntu 12.04, Fedora 17, OpenSUSE 12.2 and Ubuntu 12.10)
+      - Fix bug for PCIe-1620 in 50 baudrate
+version 3.38 <2013-08-09>
+      - support 3.9.x, 3.10.x kernel (3.x, test In Fedora 18, Fedora 19)
+version 3.39 <2014-01-24>
+      - support PCIe-1620 DMA bug in UNO-3084
+version 3.40 <2014-06-12>
+      - support A516 general COM card    
+version 3.41 <2017-03-21>
+      - support 3.19.x kernel (test In Ubuntu 14.04.3)    
+      - support 4.4.x kernel (test In Ubuntu 16.04.1)    
+      - support 4.5.x kernel (Fedora Workstation 24)    
 
 2. Test environment
 
@@ -144,11 +164,16 @@ Version 4.4.0-116 <2018-03-23>
    |	Fedora Core 12        |  2.6.31.5-127.fc12      | 
    |    Fedora Core 13        |  2.6.33.3-85.fc13       | 
    |	Fedora Core 14        |  2.6.35.6-45.fc14       |  
-   |    Fedora Core 15        |  2.6.38/2.6.40          |         
+   |    Fedora Core 15        |  2.6.38/2.6.40          |
+   |    Fedora Core 16        |  3.1.0-7.fc16           | 
+   |    Fedora Core 17        |  3.3.4-5.fc17           | 
+   |    Fedora Core 18        |  3.6.10-4.fc18          |
+   |    Fedora Core 19        |  3.9.5-301.fc19         |      
    |	SUSE 10.1             |  2.6.16.13-4-default    |       
    |	SUSE 10.3             |  2.6.22.5-31-default    |      
    |	SUSE 11.2             |  2.6.31.5-0.1-desktop   |
    |    SUSE 11.4             |  2.6.37                 |
+   |    OpenSUSE 12.2         |  3.4.6-2.10-desktop     |  
    |	Mandriva 2010         |  2.6.31.5-desktop-1mnb  |
    |	Debian 5.0.4          |  2.6.26-2-686           |
    |    Debian 6.0.2          |  2.6.32                 |    
@@ -156,7 +181,11 @@ Version 4.4.0-116 <2018-03-23>
    |	ubuntu 9.04           |  2.6.28-11-generic      |
    |	Ubuntu 9.10           |  2.6.31-14-generic      |
    |	Ubuntu 10.04          |  2.6.32-21-generic      |
-   |    Ubuntu 11.10          |  3.0.2                  |
+   |    Ubuntu 12.04          |  3.0.2-23-generic-pae   |
+   |    Ubuntu 12.10          |  3.5.0-17-generic       |
+   |    Ubuntu 14.04.3        |  3.19.0-25-generic      |
+   |    Ubuntu 16.04.1        |  4.4.0-31-generic       |
+   |    Fedora Workstation 24 |  4.5.5-300.fc24         |
    +--------------------------+-------------------------+
 
 3. Installation
@@ -173,6 +202,9 @@ Version 4.4.0-116 <2018-03-23>
    b. Build driver for 2.6 kernel
       # cd adv950_vM_NN/2.6
       # make
+   c. Build driver for 3.x_and_later kernel
+      # cd adv950_vM_NN/3.x_and_later
+      # make
    Note: 
       To compile the source code, you must install kernel development header file package,"gcc" and "make" command.
       In 2.4 kernel version, you should use "ln" command to make a link named "linux-2.4" in /usr/src/, it link to you kernel development header installed folder.
@@ -180,22 +212,22 @@ Version 4.4.0-116 <2018-03-23>
 	
 3.4. Install the driver module
    # make install
-   to see whether ttyAP0~ttyAP7 exist in /dev/ folder, 
+   to see whether ttyAPn ( n = 1,2,3...) exist in /dev/ folder, 
    if not,please execute the following command, 
    # make node
 
 3.5. Test driver and get serial port type configuration
    # make test
 
-3.6. If you want the Linux bring up module at each boot,
+3.6. If you want the Linux insert the driver module automaticlly when boot,
    please follow the steps showing below
    a. Build driver 
-   b. For 2.4 kernel, add "insmod /YOURLOCATION/adv950_vM_NN/2.4/adv950.o" to
-      to boot up shell script.
-   c. For 2.6 kernel, add "insmod /YOURLOCATION/adv950_vM_NN/2.6/adv950.ko" to
-      to boot up shell script.  
-   Fedora core 6 for example:
-   add "insmod /YOURLOCATION/adv950_vM_NN/2.6/adv950.ko" to /etc/rc.d/rc.local
+   b. For 2.4 kernel, add "insmod /path/adv950.o" to
+      boot up shell script.
+      Here the "path" is adv950.o file location path.
+
+   c. For 2.6 and 3.x_and_later kernel, When execute "make install", the driver will be inserted into kernel automaticlly when boot.
+      If not,please do the same as step b.
 
 3.7. Uninstall the driver module and clean
    # make uninstall

@@ -11,85 +11,67 @@
  * (at your option) any later version.
  */
 
+#include <linux/version.h>
 #include <linux/serial_8250.h>
-void adv_uart_write_wakeup(struct uart_port *port);
-int adv_uart_resume_port(struct uart_driver *drv, struct uart_port *uport);
-void adv_serial8250_resume_port(int line);
-int adv_uart_suspend_port(struct uart_driver *drv, struct uart_port *uport);
-void adv_serial8250_suspend_port(int line);
-void adv_uart_configure_port(struct uart_driver *drv, struct uart_state *state,
-		    struct uart_port *port);
-int adv_uart_match_port(struct uart_port *port1, struct uart_port *port2);
-int adv_serial8250_register_port(struct uart_8250_port *up);
+#include <linux/serial_reg.h>
+#include <linux/dmaengine.h>
+
+
 int adv_serial8250_init(void);
-int adv_uart_register_driver(struct uart_driver *drv);
-int adv_uart_remove_one_port(struct uart_driver *drv, struct uart_port *uport);
-int adv_uart_register_driver(struct uart_driver *drv);
-int adv_uart_add_one_port(struct uart_driver *drv, struct uart_port *uport);
 void adv_serial8250_exit(void);
-void adv_uart_unregister_driver(struct uart_driver *drv);
+int adv_serial8250_register_port(struct uart_8250_port *up);
 void adv_serial8250_unregister_port(int line);
-unsigned int
-adv_uart_get_divisor(struct uart_port *port, unsigned int baud);
-void uart_configure_port(struct uart_driver *drv, struct uart_state *state,
-		    struct uart_port *port);
+void adv_default_serial_dl_write(struct uart_8250_port *up, int value);
+int adv_serial8250_do_startup(struct uart_port *port);
+void adv_serial8250_do_shutdown(struct uart_port *port);
 
 
-static inline int serial_index(struct uart_port *port)
-{
-	return port->minor - 64;
-}
+struct uart_8250_dma {
+	int (*tx_dma)(struct uart_8250_port *p);
+	int (*rx_dma)(struct uart_8250_port *p, unsigned int iir);
 
-static inline int serial_in(struct uart_8250_port *up, int offset)
-{
-	return up->port.serial_in(&up->port, offset);
-}
+	/* Filter function */
+	dma_filter_fn		fn;
+	/* Parameter to the filter function */
+	void			*rx_param;
+	void			*tx_param;
 
-static inline void serial_out(struct uart_8250_port *up, int offset, int value)
-{
-	up->port.serial_out(&up->port, offset, value);
-}
-static inline int ns16550a_goto_highspeed(struct uart_8250_port *up)
-{
-	unsigned char status;
+	struct dma_slave_config	rxconf;
+	struct dma_slave_config	txconf;
 
-	status = serial_in(up, 0x04); /* EXCR2 */
-#define PRESL(x) ((x) & 0x30)
-	if (PRESL(status) == 0x10) {
-		/* already in high speed mode */
-		return 0;
-	} else {
-		status &= ~0xB0; /* Disable LOCK, mask out PRESL[01] */
-		status |= 0x10;  /* 1.625 divisor for baud_base --> 921600 */
-		serial_out(up, 0x04, status);
-	}
-	return 1;
-}
+	struct dma_chan		*rxchan;
+	struct dma_chan		*txchan;
+
+	dma_addr_t		rx_addr;
+	dma_addr_t		tx_addr;
+
+	dma_cookie_t		rx_cookie;
+	dma_cookie_t		tx_cookie;
+
+	void			*rx_buf;
+
+	size_t			rx_size;
+	size_t			tx_size;
+
+	unsigned char		tx_running;
+	unsigned char		tx_err;
+	unsigned char		rx_running;
+};
 
 struct old_serial_port {
 	unsigned int uart;
 	unsigned int baud_base;
 	unsigned int port;
 	unsigned int irq;
-	unsigned int flags;
+	upf_t        flags;
 	unsigned char hub6;
 	unsigned char io_type;
-	unsigned char *iomem_base;
+	unsigned char __iomem *iomem_base;
 	unsigned short iomem_reg_shift;
 	unsigned long irqflags;
 };
 
-/*
- * This replaces serial_uart_config in include/linux/serial.h
- */
-struct serial8250_config {
-	const char	*name;
-	unsigned short	fifo_size;
-	unsigned short	tx_loadsz;
-	unsigned char	fcr;
-	unsigned int	flags;
-};
-/////////////
+
 #define TX_BUF_TOT_LEN 128
 #define RX_BUF_TOT_LEN 128
 //DMA registers
@@ -102,22 +84,26 @@ struct serial8250_config {
 #define DMAREAD	(1UL <<  31)
 #define DMAACT	(1UL << 0)
 #define DMAERR	(1UL << 1)
-#define DMADONE	(1UL << 2) 
-//////////////
+#define DMADONE	(1UL << 2)
+
+#ifndef CDTRDSR
+#define CDTRDSR	  004000000000  /* DTR/DSR flow control */
+#endif
+
 #define UART_CAP_FIFO	(1 << 8)	/* UART has FIFO */
 #define UART_CAP_EFR	(1 << 9)	/* UART has EFR */
 #define UART_CAP_SLEEP	(1 << 10)	/* UART has IER sleep */
 #define UART_CAP_AFE	(1 << 11)	/* MCR-based hw flow control */
 #define UART_CAP_UUE	(1 << 12)	/* UART needs IER bit 6 set (Xscale) */
 #define UART_CAP_RTOIE	(1 << 13)	/* UART needs IER bit 4 set (Xscale, Tegra) */
+#define UART_CAP_HFIFO	(1 << 14)	/* UART has a "hidden" FIFO */
+#define UART_CAP_RPM	(1 << 15)	/* Runtime PM is active while idle */
 
 #define UART_BUG_QUOT	(1 << 0)	/* UART has buggy quot LSB */
 #define UART_BUG_TXEN	(1 << 1)	/* UART has buggy TX IIR status */
 #define UART_BUG_NOMSR	(1 << 2)	/* UART has buggy MSR status bits (Au1x00) */
 #define UART_BUG_THRE	(1 << 3)	/* UART has buggy THRE reassertion */
-
-#define PROBE_RSA	(1 << 0)
-#define PROBE_ANY	(~0)
+#define UART_BUG_PARITY	(1 << 4)	/* UART mishandles parity if FIFO enabled */
 
 #define HIGH_BITS_OFFSET ((sizeof(long)-sizeof(int))*8)
 
@@ -126,6 +112,43 @@ struct serial8250_config {
 #else
 #define SERIAL8250_SHARE_IRQS 0
 #endif
+
+
+/*
+ * The special register set for XR17v25x UARTs.
+ */
+
+#define XR_17V25X_EXTENDED_FCTR		8
+#define XR_17V25X_EXTENDED_EFR		9
+#define XR_17V25X_TXFIFO_CNT		10
+#define XR_17V25X_RXFIFO_CNT		11
+#define XR_17V25X_EXTENDED_RXTRG	11
+
+#define XR_17V25X_FCTR_RTS_8DELAY	0x03
+#define XR_17V25X_FCTR_TRGD		192
+
+/* 17V15X TX/RX memory mapped buffer offsets */
+
+#define UART_17V25X_RX_OFFSET		0x100
+#define UART_17V25X_TX_OFFSET 		0x100
+
+/*
+ * These are the EXTENDED definitions for the 17V25X's Interrupt
+ * Enable Register
+ */
+#define	XR_17V25X_IER_RTSDTR	0x40
+#define XR_17V25X_IER_CTSDSR	0x80
+
+
+static inline int serial_in(struct uart_8250_port *up, int offset)
+{
+	return up->port.serial_in(&up->port, offset);
+}
+
+static inline void serial_out(struct uart_8250_port *up, int offset, int value)
+{
+	up->port.serial_out(&up->port, offset, value);
+}
 
 #if defined(__alpha__) && !defined(CONFIG_PCI)
 /*
@@ -143,4 +166,18 @@ struct serial8250_config {
 #define ALPHA_KLUDGE_MCR (UART_MCR_OUT2)
 #else
 #define ALPHA_KLUDGE_MCR 0
+#endif
+
+#define LE485FLAG_DMA	0x1000
+
+
+static inline int serial_index(struct uart_port *port)
+{
+	return port->minor - 64;
+}
+
+#if 0
+#define DEBUG_INTR(fmt...)	printk(fmt)
+#else
+#define DEBUG_INTR(fmt...)	do { } while (0)
 #endif

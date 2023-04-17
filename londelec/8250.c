@@ -344,7 +344,6 @@ int adv_serial8250_do_startup(struct uart_port *port)
 
 	int ret = serial8250_do_startup(port);
 
-
 	if (port->rs485.flags & LE485FLAG_DMA) {	// Initialize DMA
 		up->dma = kzalloc(sizeof(*up->dma), GFP_KERNEL);
 		up->dma->rx_dma = adv_serial8250_rx_chars;
@@ -364,7 +363,7 @@ int adv_serial8250_do_startup(struct uart_port *port)
 					    up->dma->rx_param, up->dma->rx_addr);
 			return -ENOMEM;
 		}
-		//printk("LEDEBUG: %s() DMA init membase=0x%x\n", __func__, port->membase);
+		//printk("LEDEBUG: %s() DMA init iobase=0x%x\n", __func__, (unsigned) port->iobase);
 	}
 
 	if (port->rs485.flags & SER_RS485_ENABLED) {	// Need to set UART_ACR after serial8250_do_startup()
@@ -372,7 +371,7 @@ int adv_serial8250_do_startup(struct uart_port *port)
 			up->acr = ACR_DTR_ACTIVE_HIGH_RS485;
 		else
 			up->acr = ACR_DTR_ACTIVE_LOW_RS485;
-		//printk("LEDEBUG: %s() iobase=0x%x up->acr=0x%x\n", __func__, port->iobase, up->acr);
+		//printk("LEDEBUG: %s() iobase=0x%x up->acr=0x%x\n", __func__, (unsigned) port->iobase, up->acr);
 		serial_icr_write(up, UART_ACR, up->acr);
 	}
 	return ret;
@@ -402,7 +401,7 @@ static struct uart_8250_port serial8250_ports[UART_NR];
 
 
 static void (*serial8250_isa_config)(int port, struct uart_port *up,
-	unsigned short *capabilities);
+	u32 *capabilities);
 
 
 
@@ -430,16 +429,15 @@ static void __init serial8250_isa_init_ports(void)
 			base_ops = port->ops;
 		port->ops = &univ8250_port_ops;
 
-		init_timer(&up->timer);
-		up->timer.function = serial8250_timeout;
+		timer_setup(&up->timer, serial8250_timeout, 0);
 
 		up->ops = &univ8250_driver_ops;
 
-		 *
-		 * ALPHA_KLUDGE_MCR needs to be killed.
-		 *
-		up->mcr_mask = ~ALPHA_KLUDGE_MCR;
-		up->mcr_force = ALPHA_KLUDGE_MCR;
+		if (IS_ENABLED(CONFIG_ALPHA_JENSEN) ||
+		    (IS_ENABLED(CONFIG_ALPHA_GENERIC) && alpha_jensen()))
+			port->set_mctrl = alpha_jensen_set_mctrl;
+
+		serial8250_set_defaults(up);
 	}
 
 	* chain base port ops to support Remote Supervisor Adapter *
@@ -456,14 +454,13 @@ static void __init serial8250_isa_init_ports(void)
 
 		port->iobase   = old_serial_port[i].port;
 		port->irq      = irq_canonicalize(old_serial_port[i].irq);
-		port->irqflags = old_serial_port[i].irqflags;
+		port->irqflags = 0;
 		port->uartclk  = old_serial_port[i].baud_base * 16;
 		port->flags    = old_serial_port[i].flags;
-		port->hub6     = old_serial_port[i].hub6;
+		port->hub6     = 0;
 		port->membase  = old_serial_port[i].iomem_base;
 		port->iotype   = old_serial_port[i].io_type;
 		port->regshift = old_serial_port[i].iomem_reg_shift;
-		serial8250_set_defaults(up);
 
 		port->irqflags |= irqflag;
 		if (serial8250_isa_config != NULL)
@@ -483,6 +480,7 @@ static void serial8250_register_ports(struct uart_driver *drv)
 {
 	int i;
 	struct uart_8250_port *firstp;
+	void *serial8250_timeout;
 
 	firstp = serial8250_get_port(0);	// First initialized 8250 port (e.g. ttyS0) to copy functions from
 
@@ -494,15 +492,11 @@ static void serial8250_register_ports(struct uart_driver *drv)
 		up->port.line = i;
 		serial8250_init_port(up);
 		up->port.ops = firstp->port.ops;				// Copy standard function
-		init_timer(&up->timer);
-		up->timer.function = firstp->timer.function;	// Copy timer function
-		up->ops = firstp->ops;							// Copy IRQ functions
 
-		/*
-		 * ALPHA_KLUDGE_MCR needs to be killed.
-		 */
-		up->mcr_mask = ~ALPHA_KLUDGE_MCR;
-		up->mcr_force |= ALPHA_KLUDGE_MCR;				// We might have UART_MCR_CLKSEL bit forced
+		serial8250_timeout = firstp->timer.function;			// Copy timer function
+		timer_setup(&up->timer, serial8250_timeout, 0);
+
+		up->ops = firstp->ops;							// Copy IRQ functions
 
 		//adv_uart_add_one_port(drv, &up->port);
 	}
@@ -617,7 +611,9 @@ int adv_serial8250_register_port(struct uart_8250_port *up)
 		uart->port.throttle	= up->port.throttle;
 		uart->port.unthrottle	= up->port.unthrottle;
 		uart->port.rs485_config	= up->port.rs485_config;
+		uart->port.rs485_supported = up->port.rs485_supported;
 		uart->port.rs485	= up->port.rs485;
+		uart->lsr_save_mask	= up->lsr_save_mask;
 		uart->dma		= up->dma;
     	//uart->port.unused[0]    = up->port.unused[0];
     	//uart->port.unused[1]    = up->port.unused[1];
@@ -631,7 +627,7 @@ int adv_serial8250_register_port(struct uart_8250_port *up)
 			uart->port.dev = up->port.dev;
 
 		if (skip_txen_test)
-			uart->port.flags |= UPF_NO_TXEN_TEST;
+			uart->port.flags |= UPQ_NO_TXEN_TEST;
 
 		if (up->port.flags & UPF_FIXED_TYPE)
 			uart->port.type = up->port.type;
@@ -648,8 +644,16 @@ int adv_serial8250_register_port(struct uart_8250_port *up)
 		/*  Possibly override set_termios call */
 		if (up->port.set_termios)
 			uart->port.set_termios = up->port.set_termios;
+		if (up->port.set_ldisc)
+			uart->port.set_ldisc = up->port.set_ldisc;
+		if (up->port.get_mctrl)
+			uart->port.get_mctrl = up->port.get_mctrl;
 		if (up->port.set_mctrl)
 			uart->port.set_mctrl = up->port.set_mctrl;
+		if (up->port.get_divisor)
+			uart->port.get_divisor = up->port.get_divisor;
+		if (up->port.set_divisor)
+			uart->port.set_divisor = up->port.set_divisor;
 		if (up->port.startup)
 			uart->port.startup = up->port.startup;
 		if (up->port.shutdown)
@@ -662,8 +666,8 @@ int adv_serial8250_register_port(struct uart_8250_port *up)
 			uart->dl_read = up->dl_read;
 		if (up->dl_write)
 			uart->dl_write = up->dl_write;
-		if (up->mcr_force)		// DMA requires forcing UART_MCR_CLKSEL bit
-			uart->mcr_force |= up->mcr_force;
+		if (up->mcr)			// DMA requires forcing UART_MCR_CLKSEL bit
+			uart->mcr |= up->mcr;
 
 		if (uart->port.type != PORT_8250_CIR) {
 			if (serial8250_isa_config != NULL)

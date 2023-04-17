@@ -49,8 +49,8 @@
  * Advantech IAG PCI-954/16C950 cards
  *
  */
-#define ADVANTECH_16C950_VER                    "4.4.0-116"
-#define ADVANTECH_16C950_DATE                   "16/04/2018"
+#define ADVANTECH_16C950_VER                    "6.0.6"
+#define ADVANTECH_16C950_DATE                   "16/04/2023"
 #define PCI_VENDOR_ID_ADVANTECH                 0x13fe
 #define PCI_DEVICE_ID_ADVANTECH_PCI1600         0x1600 /* Internal */
 #define PCI_DEVICE_ID_ADVANTECH_PCI1601         0x1601 /* Internal */
@@ -169,6 +169,19 @@ static void moan_device(const char *str, struct pci_dev *dev)
 	       dev->subsystem_vendor, dev->subsystem_device);
 }
 
+/* Dummy config function required for 6.0.6-londelec kernel */
+static int adv_rs485_config(struct uart_port *port, struct ktermios *termios,
+			       struct serial_rs485 *rs485)
+{
+	//printk("LEDEBUG: %s() rs485flags=0x%x, supported=0x%x\n", __func__,  port->rs485.flags, port->rs485_supported.flags);
+	return 0;
+}
+
+/* Supported flags required for 6.0.6-londelec kernel */
+static const struct serial_rs485 adv_rs485_supported = {
+	.flags = SER_RS485_ENABLED | SER_RS485_RTS_ON_SEND | SER_RS485_RTS_AFTER_SEND | LE485FLAG_DMA,
+};
+
 static int
 setup_port(struct serial_private *priv, struct uart_8250_port *port,
 	   int bar, int offset, int regshift)
@@ -281,11 +294,11 @@ pci_advantech_setup (struct serial_private *priv,
 		break;
 	case PCI_DEVICE_ID_ADVANTECH_UNOBX201_2201:
 		printk("UNOB-2201CB");
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		break;
 	case PCI_DEVICE_ID_ADVANTECH_UNO2X76_2176:
 		printk( "UNO-2176" );
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		break;
 	case PCI_DEVICE_ID_ADVANTECH_MIC3612:
 		printk("MIC-3612");
@@ -309,11 +322,11 @@ pci_advantech_setup (struct serial_private *priv,
 		break;
 	case PCI_SUB_VENDOR_ID_ADVANTECH_PCM3614P:
 		printk( "PCM-3614P" );
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		break;
 	case PCI_SUB_VENDOR_ID_ADVANTECH_PCM3618P:
 		printk( "PCM-3618P" );
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		break;
 	case PCI_SUB_VENDOR_ID_ADVANTECH_PCM3641P:
 		printk( "PCM-3641P" );
@@ -329,7 +342,7 @@ pci_advantech_setup (struct serial_private *priv,
 		base_idx = 2;
 		bar = PCI_BASE_ADDRESS_2;
 		offset485 = 0x10;
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		break;
 	case PCI_VENDOR_ID_ADVANTECH:
 		switch(dev->device)
@@ -337,7 +350,7 @@ pci_advantech_setup (struct serial_private *priv,
 		case PCI_DEVICE_ID_ADVANTECH_PCIE952:
 			printk( "PCIE952");
 			port->dl_write = adv_default_serial_dl_write;//this bit means to use new way to calculate baudrate
-			port->mcr_force |= UART_MCR_CLKSEL;	// This comes from Advantech's 8250.c serial8250_set_mctrl()
+			port->mcr |= UART_MCR_CLKSEL;	// This comes from Advantech's 8250.c serial8250_set_mctrl()
 			port->port.rs485.flags |= LE485FLAG_DMA; //have DMA
 			isPCIe95x = 1; //is PCIe952/4/8
 			configFunc = 0;
@@ -345,12 +358,12 @@ pci_advantech_setup (struct serial_private *priv,
 			base_idx = 13;//
 			bar = PCI_BASE_ADDRESS_0;//ok
 			offset485 = 0x100;//
-			activeType &= ~SER_RS485_RTS_ON_SEND;
+			activeType = SER_RS485_RTS_AFTER_SEND;
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCIE954:
 			printk( "PCIE954");
 			port->dl_write = adv_default_serial_dl_write;
-			port->mcr_force |= UART_MCR_CLKSEL;
+			port->mcr |= UART_MCR_CLKSEL;
 			port->port.rs485.flags |= LE485FLAG_DMA;
 			isPCIe95x = 1;
 			configFunc = 0;
@@ -358,14 +371,14 @@ pci_advantech_setup (struct serial_private *priv,
 			base_idx = 13;//
 			bar = PCI_BASE_ADDRESS_0;//ok
 			offset485 = 0x100;//
-			activeType &= ~SER_RS485_RTS_ON_SEND;
+			activeType = SER_RS485_RTS_AFTER_SEND;
 
 			//port->port.startup = serial8250_do_startup;
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCIE958:
 			printk( "PCIE958-DMA");
 			port->dl_write = adv_default_serial_dl_write;
-			port->mcr_force |= UART_MCR_CLKSEL;
+			port->mcr |= UART_MCR_CLKSEL;
 			port->port.rs485.flags |= LE485FLAG_DMA;
 			isPCIe95x = 1;
 			configFunc = 0;
@@ -373,12 +386,12 @@ pci_advantech_setup (struct serial_private *priv,
 			base_idx = 13;//
 			bar = PCI_BASE_ADDRESS_0;//ok
 			offset485 = 0x100;//
-			activeType &= ~SER_RS485_RTS_ON_SEND;
+			activeType = SER_RS485_RTS_AFTER_SEND;
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_A516:
 			printk( "PCIE958-DMA");
 			port->dl_write = adv_default_serial_dl_write;
-			port->mcr_force |= UART_MCR_CLKSEL;
+			port->mcr |= UART_MCR_CLKSEL;
 			port->port.rs485.flags |= LE485FLAG_DMA;
 			isPCIe95x = 1;
 			configFunc = 0;
@@ -386,7 +399,7 @@ pci_advantech_setup (struct serial_private *priv,
 			base_idx = 13;//
 			bar = PCI_BASE_ADDRESS_0;//ok
 			offset485 = 0x100;//
-			activeType &= ~SER_RS485_RTS_ON_SEND;
+			activeType = SER_RS485_RTS_AFTER_SEND;
 			break;
 		case PCI_DEVICE_ID_ADVANTECH_PCI1601:
 			printk("PCI-1601A/B/AU/BU");
@@ -421,7 +434,7 @@ pci_advantech_setup (struct serial_private *priv,
 	|| dev->device == PCI_DEVICE_ID_ADVANTECH_F102
 	|| dev->device == PCI_DEVICE_ID_ADVANTECH_F104)
 	{
-		activeType &= ~SER_RS485_RTS_ON_SEND;
+		activeType = SER_RS485_RTS_AFTER_SEND;
 		if (dev->subsystem_vendor != PCI_VENDOR_ID_ADVANTECH)
 		{
 			printk("%s-%04x",product_line[dev->subsystem_vendor],dev->subsystem_device);
@@ -443,8 +456,8 @@ pci_advantech_setup (struct serial_private *priv,
 	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A834
 	|| dev->device == PCI_DEVICE_ID_ADVANTECH_A838)
 	{
-		activeType &= ~SER_RS485_RTS_ON_SEND;
-		port->port.unused[1] |= 0x20; //Is XR chip
+		activeType = SER_RS485_RTS_AFTER_SEND;
+		// FIXME  port->port.unused[1] |= 0x20; //Is XR chip
 		printk("Advantech General COM Port Device");
 
 		//UART_TYPE_AUTO: detect 232 or 422/485
@@ -537,6 +550,8 @@ pci_advantech_setup (struct serial_private *priv,
 done:
 	port->port.startup = adv_serial8250_do_startup;
 	port->port.shutdown = adv_serial8250_do_shutdown;
+	port->port.rs485_config = adv_rs485_config;
+	port->port.rs485_supported = adv_rs485_supported;
 
 	printk(", function %d, port %d, %s",
 		PCI_FUNC(dev->devfn), idx,
